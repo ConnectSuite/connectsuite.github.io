@@ -1059,17 +1059,25 @@ function buildDeptSection(dept, data) {
   // 当日分のみ表示（翌営業日分は翌日になったら表示）
   const displayRows = data.filter(r => r.dept === dept && (!r.dateStr || r.dateStr === today));
 
-  // ソート
+  // ソート: 氏名でグループ化 → グループ内は時刻順（直帰・終日は最後）
+  const retOrder = r => {
+    if (r.return === '直帰') return 2;
+    if (r.return === '終日') return 3;
+    return 1;
+  };
+
+  // 各氏名の「最初の登録（updatedAt が最も早いもの）」を基準に、氏名の表示順を決める
+  const nameFirstSeen = {};
+  displayRows.forEach(r => {
+    if (!(r.name in nameFirstSeen) || r.updatedAt < nameFirstSeen[r.name]) {
+      nameFirstSeen[r.name] = r.updatedAt;
+    }
+  });
+
   const sorted = displayRows.slice().sort((a, b) => {
-    const isToday = r => !r.dateStr || r.dateStr === today;
-    const dayOrder = r => isToday(r) ? 0 : 1;
-    const retOrder = r => {
-      if (r.return === '直帰') return 2;
-      if (r.return === '終日') return 3;
-      return 1;
-    };
-    const dd = dayOrder(a) - dayOrder(b);
-    if (dd !== 0) return dd;
+    if (a.name !== b.name) {
+      return (nameFirstSeen[a.name] || '').localeCompare(nameFirstSeen[b.name] || '');
+    }
     const ro = retOrder(a) - retOrder(b);
     if (ro !== 0) return ro;
     if (retOrder(a) === 1) return a.return.localeCompare(b.return);
@@ -1328,13 +1336,16 @@ function submitSchedule() {
 
   // フォームリセット
   document.getElementById('dest-input').value = '';
+  document.getElementById('dest-input').blur();
   document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
   setReturnMode('chokki');
   renderDayOptions();
   renderMyEntries(profile);
 
   // 登録結果がすぐ見えるよう画面最上部へスクロール
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+  window.scrollTo(0, 0);
 
   // 戻るボタンを点滅させて目立たせる
   flashBackButton();
@@ -1346,9 +1357,12 @@ function flashBackButton() {
   const btn = document.querySelector('.back-btn');
   if (!btn) return;
   btn.classList.remove('back-btn-flash'); // 再実行できるよう一旦解除
-  void btn.offsetWidth; // reflow강제（アニメーション再トリガー）
-  btn.classList.add('back-btn-flash');
-  setTimeout(() => btn.classList.remove('back-btn-flash'), 1800);
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      btn.classList.add('back-btn-flash');
+    });
+  });
+  setTimeout(() => btn.classList.remove('back-btn-flash'), 2000);
 }
 
 function showToast(msg, warn) {
