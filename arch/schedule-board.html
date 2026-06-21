@@ -980,7 +980,7 @@ function tomorrowStr() {
   return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
 }
 
-// 今日から平日（土日除く）を4日分リストアップ
+// 今日から4日分（土日も含む）リストアップ
 // [{dateStr, label, dow}, ...]
 function getSelectableDays() {
   const days = ['日','月','火','水','木','金','土'];
@@ -988,19 +988,18 @@ function getSelectableDays() {
   const d = new Date();
   d.setHours(0,0,0,0);
 
-  // 今日（土日でも「今日」は選べる）
+  // 今日
   result.push({
     dateStr: `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`,
     label: '今日',
     dow: days[d.getDay()]
   });
 
-  // 翌日以降、平日のみ3件
+  // 翌日以降、土日も含めて3件
   const cursor = new Date(d);
   while (result.length < 4) {
     cursor.setDate(cursor.getDate() + 1);
     const dow = cursor.getDay();
-    if (dow === 0 || dow === 6) continue; // 土日スキップ
     result.push({
       dateStr: `${cursor.getFullYear()}-${cursor.getMonth()+1}-${cursor.getDate()}`,
       label: `${cursor.getMonth()+1}/${cursor.getDate()}`,
