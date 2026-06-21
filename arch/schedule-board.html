@@ -384,6 +384,26 @@
   }
   .back-btn:hover { border-color: var(--accent); color: var(--accent); }
 
+  .back-btn-flash {
+    animation: backBtnFlash 0.6s ease-in-out 3;
+  }
+  @keyframes backBtnFlash {
+    0%, 100% {
+      background: none;
+      border-color: var(--border);
+      color: var(--text-dim);
+      box-shadow: none;
+      transform: scale(1);
+    }
+    50% {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      box-shadow: 0 0 14px var(--accent);
+      transform: scale(1.15);
+    }
+  }
+
   .input-title {
     font-size: 1.3rem;
     font-weight: 700;
@@ -1313,7 +1333,22 @@ function submitSchedule() {
   renderDayOptions();
   renderMyEntries(profile);
 
+  // 登録結果がすぐ見えるよう画面最上部へスクロール
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // 戻るボタンを点滅させて目立たせる
+  flashBackButton();
+
   showToast('登録しました');
+}
+
+function flashBackButton() {
+  const btn = document.querySelector('.back-btn');
+  if (!btn) return;
+  btn.classList.remove('back-btn-flash'); // 再実行できるよう一旦解除
+  void btn.offsetWidth; // reflow강제（アニメーション再トリガー）
+  btn.classList.add('back-btn-flash');
+  setTimeout(() => btn.classList.remove('back-btn-flash'), 1800);
 }
 
 function showToast(msg, warn) {
