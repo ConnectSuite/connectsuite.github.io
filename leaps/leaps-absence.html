@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<title>不在管理登録</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
+:root{
+  --out:#D94F00;--in:#1A6FBF;--toseki:#1A8F5A;
+  --bg:#F2F2EF;--card:#fff;--text:#1A1A1A;
+  --muted:#888;--border:#DDDBD5;
+  --out-light:#FEF0E8;--in-light:#E8F2FE;--toseki-light:#E8F5EF;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding-bottom:48px;}
+
+.hd{background:#1A1A1A;color:#fff;padding:14px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:50;}
+.hd-title{font-size:15px;font-weight:700;flex:1;}
+.hd-time{font-size:12px;color:#aaa;}
+
+/* ===== 住宅選択画面 ===== */
+#screenSelect{padding:20px 16px;}
+.sel-heading{font-size:18px;font-weight:700;margin-bottom:4px;}
+.sel-sub{font-size:13px;color:var(--muted);margin-bottom:20px;}
+.house-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+.house-btn{
+  padding:16px 10px;
+  border:1.5px solid var(--border);
+  border-radius:14px;
+  background:#fff;
+  font-family:'Noto Sans JP',sans-serif;
+  font-size:16px;font-weight:700;
+  cursor:pointer;
+  transition:all .15s;
+  text-align:center;
+  color:var(--text);
+}
+.house-btn:active{transform:scale(.97);background:#F0EEE8;}
+.house-btn .btn-name{display:block;font-size:15px;font-weight:700;}
+.house-btn .btn-count{display:block;font-size:12px;font-weight:400;margin-top:3px;color:var(--out);}
+.house-btn .btn-count.none{color:var(--muted);}
+
+/* ===== ダッシュボード画面 ===== */
+#screenDash{display:none;padding:0 0 32px;}
+.dash-nav{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#fff;border-bottom:1px solid var(--border);}
+.dash-back{border:1.5px solid var(--border);border-radius:8px;background:#fff;padding:6px 12px;font-family:'Noto Sans JP',sans-serif;font-size:13px;cursor:pointer;color:var(--text);}
+.dash-title{font-size:15px;font-weight:700;flex:1;}
+.dash-updated{font-size:11px;color:var(--muted);}
+.dash-card{margin:12px 16px;background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.07);overflow:hidden;}
+.dash-house-hd{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);gap:8px;}
+.dash-house-name{font-size:15px;font-weight:700;flex:1;}
+.dash-count-badge{font-size:12px;padding:3px 10px;border-radius:12px;font-weight:700;}
+.dash-count-badge.has{background:var(--out-light);color:var(--out);}
+.dash-count-badge.none{background:#F0F0F0;color:var(--muted);}
+.dash-absentee{display:flex;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);gap:10px;}
+.dash-absentee:last-child{border-bottom:none;}
+.dash-av{width:30px;height:30px;border-radius:50%;background:#DDE5F0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#555;flex-shrink:0;}
+.dash-info{flex:1;}
+.dash-name{font-size:14px;font-weight:700;}
+.dash-meta{font-size:11px;color:var(--muted);margin-top:1px;}
+.dash-badge{font-size:11px;padding:2px 8px;border-radius:8px;background:var(--out-light);color:var(--out);font-weight:700;white-space:nowrap;flex-shrink:0;}
+.dash-badge.toseki{background:var(--toseki-light);color:var(--toseki);}
+.dash-empty{padding:14px 16px;font-size:13px;color:var(--muted);}
+.dash-reload{display:block;margin:16px auto;padding:10px 28px;border:1.5px solid var(--border);border-radius:10px;background:#fff;font-family:'Noto Sans JP',sans-serif;font-size:14px;font-weight:700;cursor:pointer;color:var(--text);}
+
+/* ===== メインフォーム画面 ===== */
+#screenMain{display:none;}
+
+.nav-bar{
+  display:flex;align-items:center;gap:10px;
+  padding:12px 16px;background:#fff;
+  border-bottom:1px solid var(--border);
+}
+.nav-back{
+  border:1.5px solid var(--border);border-radius:8px;
+  background:#fff;padding:6px 12px;
+  font-family:'Noto Sans JP',sans-serif;font-size:13px;
+  cursor:pointer;color:var(--text);
+}
+.nav-house{font-size:15px;font-weight:700;flex:1;}
+.nav-badge{font-size:12px;padding:3px 10px;border-radius:20px;background:#1A1A1A;color:#fff;}
+
+/* タブ */
+.tabs{display:flex;margin:12px 16px 0;border-radius:12px;overflow:hidden;border:1.5px solid var(--border);background:#fff;}
+.tab{flex:1;padding:12px 4px;font-family:'Noto Sans JP',sans-serif;font-size:13px;font-weight:700;border:none;background:#fff;color:var(--muted);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;line-height:1.2;}
+.tab .ti{font-size:20px;}
+.tab.act-out{background:var(--out);color:#fff;}
+.tab.act-in{background:var(--in);color:#fff;}
+
+/* カード */
+.card{margin:12px 16px;background:var(--card);border-radius:16px;box-shadow:0 2px 10px rgba(0,0,0,.07);overflow:hidden;}
+.card-hd{padding:15px 18px 11px;border-bottom:1px solid var(--border);}
+.card-title{font-size:17px;font-weight:700;}
+.card-sub{font-size:14px;color:var(--text);margin-top:2px;font-weight:500;}
+.card-body{padding:18px;display:flex;flex-direction:column;gap:16px;}
+
+.fl{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.5px;margin-bottom:5px;}
+.req{color:#C0220A;font-size:10px;}
+.inp,.sel,.ta{width:100%;padding:12px 13px;border:1.5px solid var(--border);border-radius:10px;font-family:'Noto Sans JP',sans-serif;font-size:16px;background:#fff;appearance:none;transition:border-color .2s;}
+.inp:focus,.sel:focus,.ta:focus{outline:none;border-color:#1A1A1A;}
+.sw{position:relative;}.sw::after{content:'▾';position:absolute;right:13px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;}
+.ta{resize:none;height:68px;}
+
+.chips{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;}
+.chip{padding:11px 4px;border:1.5px solid var(--border);border-radius:10px;text-align:center;font-size:15px;font-weight:500;cursor:pointer;background:#fff;font-family:'Noto Sans JP',sans-serif;line-height:1.3;}
+.chip .ci{font-size:18px;display:block;margin-bottom:2px;}
+.chip.sel-out{border-color:var(--out);background:var(--out-light);color:var(--out);font-weight:700;}
+.chip.sel-toseki{border-color:var(--toseki);background:var(--toseki-light);color:var(--toseki);font-weight:700;}
+
+.abs-list{display:flex;flex-direction:column;gap:8px;}
+.abs-item{display:flex;align-items:flex-start;padding:13px;border:1.5px solid var(--border);border-radius:10px;gap:11px;cursor:pointer;background:#fff;}
+.abs-item.sel{border-color:var(--in);background:var(--in-light);}
+.abs-av{width:34px;height:34px;border-radius:50%;background:#DDE5F0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#555;flex-shrink:0;margin-top:1px;}
+.abs-info{flex:1;}
+.abs-name{font-size:15px;font-weight:700;}
+.abs-meta{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.5;}
+.abs-badge{font-size:14px;padding:4px 10px;border-radius:10px;background:var(--out-light);color:var(--out);font-weight:700;white-space:nowrap;flex-shrink:0;margin-top:3px;}
+.abs-badge.toseki{background:var(--toseki-light);color:var(--toseki);}
+.abs-chk{width:20px;height:20px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;margin-top:7px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;}
+.abs-item.sel .abs-chk{background:var(--in);border-color:var(--in);}
+
+.btn{width:100%;padding:15px;border:none;border-radius:12px;font-family:'Noto Sans JP',sans-serif;font-size:16px;font-weight:700;cursor:pointer;}
+.btn-out{background:var(--out);color:#fff;}
+.btn-in{background:var(--in);color:#fff;}
+.btn:disabled{opacity:.5;}
+.btn:active{transform:scale(.98);}
+
+.empty{text-align:center;padding:28px 0;color:var(--muted);font-size:14px;}
+.loading{text-align:center;padding:24px;color:var(--muted);font-size:13px;}
+
+.note{margin:0 16px;padding:11px 13px;background:#FFFBEE;border:1px solid #E0D070;border-radius:10px;font-size:11px;color:#6A5A00;line-height:1.7;}
+.note strong{display:block;margin-bottom:2px;}
+
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center;padding:32px;}
+.ov.show{display:flex;}
+.ov-card{background:#fff;border-radius:20px;padding:32px 24px;text-align:center;width:100%;max-width:300px;animation:pop .3s cubic-bezier(.34,1.56,.64,1);}
+@keyframes pop{from{transform:scale(.8);opacity:0}to{transform:scale(1);opacity:1}}
+.ov-icon{font-size:52px;margin-bottom:10px;}
+.ov-title{font-size:20px;font-weight:700;margin-bottom:6px;}
+.ov-sub{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6;}
+.ov-btn{padding:11px 28px;border:none;border-radius:10px;background:#1A1A1A;color:#fff;font-family:'Noto Sans JP',sans-serif;font-size:14px;font-weight:700;cursor:pointer;}
+
+.sec{display:none;}.sec.show{display:block;}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <span class="hd-title">不在管理登録</span>
+  <span class="hd-time" id="hTime"></span>
+  <button onclick="openDash()" style="border:none;background:rgba(255,255,255,0.15);color:#fff;border-radius:8px;padding:5px 10px;font-family:'Noto Sans JP',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">📊 一覧</button>
+</div>
+
+<!-- ===== 住宅選択画面 ===== -->
+<div id="screenSelect">
+  <p class="sel-heading">住宅を選んでください</p>
+  <p class="sel-sub">登録する住宅をタップしてください</p>
+  <div class="house-grid" id="houseGrid">
+    <!-- JSで生成 -->
+  </div>
+</div>
+
+<!-- ===== ダッシュボード画面 ===== -->
+<div id="screenDash">
+  <div class="dash-nav">
+    <button class="dash-back" onclick="closeDash()">← 戻る</button>
+    <span class="dash-title">不在状況一覧</span>
+    <span class="dash-updated" id="dashUpdated"></span>
+  </div>
+  <div id="dashContent"><div class="loading" style="padding:32px;text-align:center;color:var(--muted);">読み込み中…</div></div>
+  <button class="dash-reload" onclick="loadDash()">🔄 最新情報に更新</button>
+</div>
+
+<!-- ===== メインフォーム画面 ===== -->
+<div id="screenMain">
+
+  <div class="nav-bar">
+    <button class="nav-back" onclick="backToSelect()">← 住宅選択</button>
+    <span class="nav-house" id="navHouse"></span>
+  </div>
+
+  <!-- タブ -->
+  <div class="tabs">
+    <button class="tab act-out" id="tabOut" onclick="switchTab('out')">
+      <span class="ti">🚶</span>外出登録
+    </button>
+    <button class="tab" id="tabIn" onclick="switchTab('in')">
+      <span class="ti">🏠</span>帰着登録
+    </button>
+  </div>
+
+  <!-- 外出フォーム -->
+  <div class="sec show" id="secOut">
+    <div class="card">
+      <div class="card-hd">
+        <div class="card-sub" id="outSub"></div>
+      </div>
+      <div class="card-body">
+        <div>
+          <div class="fl">お名前 <span class="req">必須</span></div>
+          <input class="inp" type="text" id="nameInput" placeholder="例：田中 花子">
+        </div>
+        <div>
+          <div class="fl">不在区分 <span class="req">必須</span></div>
+          <div class="chips">
+            <div class="chip" onclick="selChip(this)"><span class="ci">🏥</span>通院</div>
+            <div class="chip" onclick="selChip(this)"><span class="ci">🏡</span>自宅外泊</div>
+            <div class="chip" onclick="selChip(this)"><span class="ci">🏨</span>入院</div>
+            <div class="chip" onclick="selChip(this)"><span class="ci">💉</span>透析</div>
+            <div class="chip" onclick="selChip(this)"><span class="ci">🚶</span>その他</div>
+          </div>
+        </div>
+        <div>
+          <div class="fl">予定帰着日時（任意）</div>
+          <input class="inp" type="datetime-local" id="expectedReturn">
+        </div>
+        <div>
+          <div class="fl">備考（任意）</div>
+          <textarea class="ta" id="outNote" placeholder="行き先・受診先・注意事項など"></textarea>
+        </div>
+        <button class="btn btn-out" id="outBtn" onclick="doOut()">外出を登録する →</button>
+      </div>
+    </div>
+    <div class="note"><strong>📌 スタッフへ</strong>帰着時は「帰着登録」タブをタップしてください。</div>
+  </div>
+
+  <!-- 帰着フォーム -->
+  <div class="sec" id="secIn">
+    <div class="card">
+      <div class="card-hd">
+        <div class="card-sub" id="absentCount">読み込み中…</div>
+      </div>
+      <div class="card-body">
+        <div>
+          <div class="fl">帰着された方を選択 <span class="req">必須</span></div>
+          <div class="abs-list" id="absList">
+            <div class="loading">読み込み中…</div>
+          </div>
+        </div>
+        <div>
+          <div class="fl">帰着時刻</div>
+          <input class="inp" type="datetime-local" id="returnTime">
+        </div>
+        <div>
+          <div class="fl">帰着時の状態</div>
+          <div class="sw">
+            <select class="sel" id="condition">
+              <option value="">選択してください</option>
+              <option>問題なし（通常帰着）</option>
+              <option>要観察（軽微な変化あり）</option>
+              <option>要報告（医療的変化あり）</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <div class="fl">備考（任意）</div>
+          <textarea class="ta" id="inNote" placeholder="帰着時の様子・申し送り事項など"></textarea>
+        </div>
+        <button class="btn btn-in" id="inBtn" onclick="doIn()">帰着を登録する →</button>
+      </div>
+    </div>
+    <div class="note"><strong>📌 スタッフへ</strong>登録するとスプレッドシートの同じ行に帰着日時が記入されグレーアウトされます。</div>
+  </div>
+
+</div><!-- /screenMain -->
+
+<!-- 完了モーダル -->
+<div class="ov" id="ov">
+  <div class="ov-card">
+    <div class="ov-icon" id="ovIcon"></div>
+    <div class="ov-title" id="ovTitle"></div>
+    <div class="ov-sub" id="ovSub"></div>
+    <button class="ov-btn" onclick="closeOv()">閉じる</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  GAS API設定
+//  【設定】デプロイ後にGASのWebアプリURLを貼り付ける
+// ============================================================
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzzIrdpbUR3ca1Oj1Cd0QQ3Hq6P70qcK2SpFxjTXaLMvT8kbUrAHYj3qMb_9Hv1Jeg/exec';
+
+// アクセストークン（gas-server-leaps.js の ACCESS_TOKEN と必ず一致させること）
+const GAS_TOKEN = 'leaps-2026-h7vK3qN9wL';
+
+// ===== GAS API 通信ヘルパー =====
+async function apiGet(params) {
+  const qs = Object.entries(params)
+    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+    .join('&');
+  const res = await fetch(`${GAS_URL}?${qs}&token=${encodeURIComponent(GAS_TOKEN)}`);
+  return await res.json();
+}
+
+async function apiPost(action, data) {
+  const res = await fetch(GAS_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action, data, token: GAS_TOKEN })
+  });
+  return await res.json();
+}
+
+let currentHouse = '';
+let selChipEl = null, selAbsent = null, listLoaded = false;
+
+// 日付＋時刻表示（yyyy/m/d hh:mm）
+(function tick(){
+  const n = new Date();
+  const date = n.getFullYear() + '/' + (n.getMonth()+1) + '/' + n.getDate();
+  const time = String(n.getHours()).padStart(2,'0') + ':' + String(n.getMinutes()).padStart(2,'0');
+  document.getElementById('hTime').textContent = date + ' ' + time;
+  setTimeout(tick, 10000);
+})();
+
+// 現在時刻
+const nowLocal = (() => {
+  const n = new Date(); n.setMinutes(n.getMinutes()-n.getTimezoneOffset());
+  return n.toISOString().slice(0,16);
+})();
+document.getElementById('returnTime').value = nowLocal;
+
+// ===== 住宅選択グリッド生成（GASから動的取得）=====
+function buildHouseGrid(houses) {
+  const grid = document.getElementById('houseGrid');
+  grid.innerHTML = '';
+  if (!houses || houses.length === 0) {
+    grid.innerHTML = '<p style="color:#888;font-size:13px;">住宅マスタが読み込めませんでした</p>';
+    return;
+  }
+  houses.forEach(h => {
+    const btn = document.createElement('button');
+    btn.className = 'house-btn';
+    const countText = h.absentCount > 0
+      ? `<span class="btn-count">${h.absentCount}名不在</span>`
+      : `<span class="btn-count none">不在者なし</span>`;
+    btn.innerHTML = `<span class="btn-name">${h.name}</span>${countText}`;
+    btn.onclick = () => selectHouse(h.name);
+    grid.appendChild(btn);
+  });
+}
+
+// ページ読み込み時に住宅一覧を取得
+document.getElementById('houseGrid').innerHTML = '<p style="color:#888;font-size:13px;padding:8px 0;">読み込み中…</p>';
+apiGet({ action: 'houses' })
+  .then(function(houses) {
+    if (houses.error) throw new Error(houses.error);
+    buildHouseGrid(houses);
+    // 前回選択した住宅があれば自動で選択
+    const lastHouse = localStorage.getItem('lastHouse');
+    if (lastHouse && houses.some(h => h.name === lastHouse)) {
+      selectHouse(lastHouse);
+    }
+  })
+  .catch(function(e) {
+    document.getElementById('houseGrid').innerHTML =
+      '<p style="color:#C0220A;font-size:13px;">読み込みエラー：' + e + '</p>';
+  });
+
+// 住宅選択
+function selectHouse(house) {
+  currentHouse = house;
+  localStorage.setItem('lastHouse', house); // 選択した住宅を記憶
+  document.getElementById('navHouse').textContent = house;
+  document.getElementById('outSub').textContent = house + ' ／ 外出される方を登録します';
+  document.getElementById('screenSelect').style.display = 'none';
+  document.getElementById('screenMain').style.display = 'block';
+  // タブをリセット
+  switchTab('out');
+  listLoaded = false;
+  selAbsent = null;
+  selChipEl = null;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('sel-out','sel-toseki'));
+  document.getElementById('nameInput').value = '';
+  document.getElementById('outNote').value = '';
+  document.getElementById('expectedReturn').value = '';
+}
+
+// 住宅選択に戻る
+function backToSelect() {
+  document.getElementById('screenMain').style.display = 'none';
+  document.getElementById('screenSelect').style.display = 'block';
+  currentHouse = '';
+}
+
+// タブ切替
+function switchTab(mode) {
+  document.getElementById('secOut').classList.toggle('show', mode==='out');
+  document.getElementById('secIn').classList.toggle('show', mode==='in');
+  document.getElementById('tabOut').className = 'tab' + (mode==='out' ? ' act-out' : '');
+  document.getElementById('tabIn').className  = 'tab' + (mode==='in'  ? ' act-in'  : '');
+  if (mode==='in' && !listLoaded) loadAbsentList();
+}
+
+// 不在中リスト読み込み
+function loadAbsentList() {
+  listLoaded = true;
+  document.getElementById('absList').innerHTML = '<div class="loading">読み込み中…</div>';
+  document.getElementById('absentCount').textContent = currentHouse + ' ／ 読み込み中…';
+  apiGet({ action: 'absent', house: currentHouse })
+    .then(renderAbsentList)
+    .catch(e => {
+      document.getElementById('absList').innerHTML = '<div class="empty">読み込みエラー：'+e+'</div>';
+    });
+}
+
+function renderAbsentList(res) {
+  const list = res.list || [];
+  document.getElementById('absentCount').textContent =
+    currentHouse + ' ／ 現在不在中：' + list.length + '名';
+  const container = document.getElementById('absList');
+  if (!list.length) {
+    container.innerHTML = '<div class="empty">現在、外出中の方はいません</div>';
+    return;
+  }
+  container.innerHTML = '';
+  list.forEach(p => {
+    const d = document.createElement('div');
+    d.className = 'abs-item';
+    const typeIconMap = {'通院':'🏥','自宅外泊':'🏡','入院':'🏨','透析':'💉','その他':'🚶'};
+    const isToseki = p.absenceType === '透析';
+    const typeIcon = typeIconMap[p.absenceType] || '';
+    d.innerHTML = `
+      <div class="abs-av">${p.name[0]}</div>
+      <div class="abs-info">
+        <div class="abs-name">${p.name}</div>
+        <div class="abs-meta">
+          ${p.outTime} 出発<br>
+          ${p.expectedReturn ? '予定帰着：' + p.expectedReturn : '帰着予定：未定'}
+        </div>
+      </div>
+      <span class="abs-badge${isToseki?' toseki':''}">${typeIcon} ${p.absenceType}</span>
+      <div class="abs-chk">✓</div>`;
+    d.onclick = () => {
+      document.querySelectorAll('.abs-item').forEach(i => i.classList.remove('sel'));
+      d.classList.add('sel');
+      selAbsent = p;
+    };
+    container.appendChild(d);
+  });
+}
+
+// チップ選択
+function selChip(el) {
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('sel-out','sel-toseki'));
+  // 絵文字spanを除いたテキストだけ取得
+  const label = el.childNodes[el.childNodes.length - 1].textContent.trim();
+  el.classList.add(label === '透析' ? 'sel-toseki' : 'sel-out');
+  selChipEl = el;
+}
+
+// 外出登録
+function doOut() {
+  const name = document.getElementById('nameInput').value.trim();
+  if (!name) { alert('お名前を入力してください'); return; }
+  if (!selChipEl) { alert('不在区分を選択してください'); return; }
+  const absenceType = selChipEl.childNodes[selChipEl.childNodes.length - 1].textContent.trim();
+  const btn = document.getElementById('outBtn');
+  btn.disabled = true; btn.textContent = '確認中…';
+
+  // 二重登録チェック
+  apiGet({ action: 'checkDup', house: currentHouse, name: name })
+    .then(function(dupRes) {
+      if (dupRes.duplicate) {
+        btn.disabled = false; btn.textContent = '外出を登録する →';
+        const msg = `⚠️ ${name} さんはすでに外出中です。
+区分：${dupRes.absenceType}
+出発：${dupRes.outTime}
+
+それでも登録しますか？`;
+        if (!confirm(msg)) return;
+        btn.disabled = true; btn.textContent = '登録中…';
+      }
+      // 登録実行
+      return apiPost('registerOut', {
+        house: currentHouse,
+        name: name,
+        absenceType: absenceType,
+        expectedReturn: document.getElementById('expectedReturn').value,
+        note: document.getElementById('outNote').value
+      }).then(res => {
+        btn.disabled=false; btn.textContent='外出を登録する →';
+        if (res.success) {
+          document.getElementById('nameInput').value = '';
+          document.getElementById('outNote').value = '';
+          document.getElementById('expectedReturn').value = '';
+          document.querySelectorAll('.chip').forEach(c => c.classList.remove('sel-out','sel-toseki'));
+          selChipEl = null;
+          listLoaded = false;
+          showOv('out', name, absenceType);
+        } else { alert('エラー：' + res.error); }
+      });
+    })
+    .catch(e => {
+      btn.disabled=false; btn.textContent='外出を登録する →';
+      alert('通信エラー：' + e);
+    });
+}
+
+// 帰着登録
+function doIn() {
+  if (!selAbsent) { alert('帰着された方を選択してください'); return; }
+  const btn = document.getElementById('inBtn');
+  btn.disabled = true; btn.textContent = '登録中…';
+
+  apiPost('registerIn', {
+    house: currentHouse,
+    absentId: selAbsent.id,
+    name: selAbsent.name,
+    absenceType: selAbsent.absenceType,
+    condition: document.getElementById('condition').value,
+    note: document.getElementById('inNote').value
+  })
+    .then(res => {
+      btn.disabled=false; btn.textContent='帰着を登録する →';
+      if (res.success) {
+        showOv('in', selAbsent.name, selAbsent.absenceType);
+        selAbsent = null;
+        listLoaded = false;
+        setTimeout(loadAbsentList, 800);
+      } else { alert('エラー：' + res.error); }
+    })
+    .catch(e => {
+      btn.disabled=false; btn.textContent='帰着を登録する →';
+      alert('通信エラー：' + e);
+    });
+}
+
+function showOv(type, name, absType) {
+  document.getElementById('ovIcon').textContent  = type==='out' ? '🚶' : '🏠';
+  document.getElementById('ovTitle').textContent = type==='out' ? '外出登録 完了' : '帰着登録 完了';
+  document.getElementById('ovSub').innerHTML = type==='out'
+    ? `<strong>${name}</strong> さん（${absType}）<br>の外出を記録しました`
+    : `<strong>${name}</strong> さんの帰着を記録しました<br>不在リストから削除されました`;
+  document.getElementById('ov').classList.add('show');
+}
+
+function closeOv() {
+  document.getElementById('ov').classList.remove('show');
+}
+
+// ===== ダッシュボード =====
+function openDash() {
+  document.getElementById('screenSelect').style.display = 'none';
+  document.getElementById('screenMain').style.display = 'none';
+  document.getElementById('screenDash').style.display = 'block';
+  loadDash();
+}
+
+function closeDash() {
+  document.getElementById('screenDash').style.display = 'none';
+  document.getElementById('screenSelect').style.display = 'block';
+}
+
+function loadDash() {
+  document.getElementById('dashContent').innerHTML =
+    '<div class="loading" style="padding:32px;text-align:center;color:var(--muted);">読み込み中…</div>';
+  document.getElementById('dashUpdated').textContent = '';
+  apiGet({ action: 'dashboard' })
+    .then(renderDash)
+    .catch(e => {
+      document.getElementById('dashContent').innerHTML =
+        '<div class="loading" style="color:#C0220A;">読み込みエラー：' + e + '</div>';
+    });
+}
+
+function renderDash(res) {
+  if (!res.success) {
+    document.getElementById('dashContent').innerHTML =
+      '<div class="loading" style="color:#C0220A;">エラー：' + res.error + '</div>';
+    return;
+  }
+  document.getElementById('dashUpdated').textContent = res.updatedAt + ' 時点';
+  const typeIconMap = {'通院':'🏥','自宅外泊':'🏡','入院':'🏨','透析':'💉','その他':'🚶'};
+  let html = '';
+  res.data.forEach(h => {
+    const badgeClass = h.absentCount > 0 ? 'has' : 'none';
+    const badgeText  = h.absentCount > 0 ? `${h.absentCount}名不在` : '不在者なし';
+    html += `<div class="dash-card">
+      <div class="dash-house-hd">
+        <span class="dash-house-name">${h.house}</span>
+        <span class="dash-count-badge ${badgeClass}">${badgeText}</span>
+      </div>`;
+    if (h.absentees.length === 0) {
+      html += `<div class="dash-empty">現在不在者はいません</div>`;
+    } else {
+      h.absentees.forEach(p => {
+        const icon = typeIconMap[p.absenceType] || '';
+        const isToseki = p.absenceType === '透析';
+        html += `<div class="dash-absentee">
+          <div class="dash-av">${p.name[0]}</div>
+          <div class="dash-info">
+            <div class="dash-name">${p.name}</div>
+            <div class="dash-meta">${p.outTime} 出発${p.expectedReturn ? ' ／ 予定帰着：' + p.expectedReturn : ''}</div>
+          </div>
+          <span class="dash-badge${isToseki?' toseki':''}">${icon} ${p.absenceType}</span>
+        </div>`;
+      });
+    }
+    html += '</div>';
+  });
+  document.getElementById('dashContent').innerHTML = html;
+}
+</script>
+</body>
+</html>
