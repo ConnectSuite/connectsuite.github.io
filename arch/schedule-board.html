@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
 <title>行動予定表</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Share+Tech+Mono&display=swap');
@@ -41,6 +42,7 @@
     overflow: hidden;
     padding: 14px 28px;
     box-sizing: border-box;
+    position: relative;
   }
 
   .signage-columns {
@@ -50,6 +52,58 @@
     flex: 1;
     overflow: hidden;
     min-height: 0;
+  }
+
+  /* ===== NAV ARROWS ===== */
+  .nav-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px;
+    height: 64px;
+    background: rgba(26, 34, 53, 0.7);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 2rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 60;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+  }
+  .nav-arrow:hover, .nav-arrow:active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .nav-arrow-left {
+    left: 0;
+    border-radius: 0 10px 10px 0;
+  }
+  .nav-arrow-right {
+    right: 0;
+    border-radius: 10px 0 0 10px;
+  }
+  .nav-arrow.nav-disabled {
+    opacity: 0.25;
+    pointer-events: none;
+  }
+  .nav-day-badge {
+    display: none;
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--accent);
+    background: rgba(255,123,26,0.12);
+    border: 1px solid var(--accent);
+    border-radius: 20px;
+    padding: 4px 16px;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    margin: 6px auto;
+    width: fit-content;
   }
 
   /* 横向き or 幅768px以上で2列 */
@@ -691,6 +745,12 @@
     .td-name   { font-size: 1.6em; flex-basis: 4.2em; }
     .td-dest   { font-size: 1.7em; }
     .td-return { font-size: 1.8em; }
+    .nav-arrow {
+      width: 32px;
+      height: 48px;
+      font-size: 1.4rem;
+      opacity: 0.55;
+    }
   }
 </style>
 </head>
@@ -707,7 +767,12 @@
     </div>
   </div>
 
-  <div class="signage-columns">
+  <button class="nav-arrow nav-arrow-left" id="nav-prev" onclick="navigateDay(-1)" aria-label="前日">‹</button>
+  <button class="nav-arrow nav-arrow-right" id="nav-next" onclick="navigateDay(1)" aria-label="翌日">›</button>
+
+  <div class="nav-day-badge" id="nav-day-badge" style="display:none;"></div>
+
+  <div class="signage-columns" id="signage-columns">
     <div class="signage-col" id="col-left"></div>
     <div class="signage-col" id="col-right"></div>
   </div>
@@ -881,6 +946,9 @@
 // ============================================================
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxgTHRD8AVsHCtH84H1_wzjbJ2gVhgviQpaYxQpmSqmSe4LSMEvfN3rAIb3CrhOi6V_/exec';
 
+// アクセストークン（gas-server.js の ACCESS_TOKEN と必ず一致させること）
+const GAS_TOKEN = 'arch-2026-x7kP9mQ2vL';
+
 // GAS連携フラグ（GAS_URLが設定されていれば自動でオンライン動作）
 const USE_GAS = GAS_URL.startsWith('https://');
 
@@ -894,6 +962,7 @@ const DATE_KEY     = 'schedule_date_v2';
 let returnMode = 'chokki';
 let dayMode = 'today';
 let isEditingProfile = false;
+let viewDateStr = null; // サイネージで表示中の日付（null=今日）
 
 // ===== 日付チェック・自動リセット =====
 function todayStr() {
@@ -945,19 +1014,10 @@ function checkDayReset() {
   const saved = localStorage.getItem(DATE_KEY);
   const today = todayStr();
   if (saved !== today) {
-    try {
-      const all = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-      // today より過去のデータだけ除外（today・翌営業日分は残す）
-      const todayDate = parseDateForCompare(today);
-      const keep = all.filter(r => {
-        const rd = parseDateForCompare(r.dateStr);
-        return !rd || rd.getTime() >= todayDate.getTime();
-      });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(keep));
-    } catch { localStorage.setItem(STORAGE_KEY, JSON.stringify([])); }
+    // データは削除しない（前後1週間ナビゲーションのため保持）
     localStorage.setItem(DATE_KEY, today);
-    // GAS側もリセット
-    if (USE_GAS) gasReset(today).catch(()=>{});
+    // 日付が変わったら表示を「今日」に戻す
+    viewDateStr = null;
   }
 }
 
@@ -989,8 +1049,9 @@ function genId() {
 
 // ===== GAS API =====
 async function gasGet() {
-  const res  = await fetch(GAS_URL + '?action=get');
+  const res  = await fetch(GAS_URL + '?action=get&token=' + encodeURIComponent(GAS_TOKEN));
   const json = await res.json();
+  if (json.error) { console.warn('GAS error:', json.error); return; }
   if (json.entries) {
     saveData(json.entries);
     localStorage.setItem(DATE_KEY, todayStr());
@@ -1000,21 +1061,21 @@ async function gasGet() {
 async function gasAdd(entry) {
   await fetch(GAS_URL, {
     method: 'POST',
-    body: JSON.stringify({ action: 'add', entry })
+    body: JSON.stringify({ action: 'add', entry, token: GAS_TOKEN })
   });
 }
 
 async function gasDelete(id) {
   await fetch(GAS_URL, {
     method: 'POST',
-    body: JSON.stringify({ action: 'delete', id })
+    body: JSON.stringify({ action: 'delete', id, token: GAS_TOKEN })
   });
 }
 
 async function gasReset(today) {
   await fetch(GAS_URL, {
     method: 'POST',
-    body: JSON.stringify({ action: 'reset', today })
+    body: JSON.stringify({ action: 'reset', today, token: GAS_TOKEN })
   });
 }
 
@@ -1052,12 +1113,16 @@ setInterval(updateClock, 1000);
 updateClock();
 
 // ===== RENDER SIGNAGE =====
-function buildDeptSection(dept, data) {
-  const today = todayStr();
-  const rows = data.filter(r => r.dept === dept && (!r.dateStr || r.dateStr === today || r.dateStr === tomorrowStr()));
 
-  // 当日分のみ表示（翌営業日分は翌日になったら表示）
-  const displayRows = data.filter(r => r.dept === dept && (!r.dateStr || r.dateStr === today));
+function getViewDateStr() {
+  return viewDateStr || todayStr();
+}
+
+function buildDeptSection(dept, data) {
+  const targetDate = getViewDateStr();
+  const isViewingToday = targetDate === todayStr();
+
+  const displayRows = data.filter(r => r.dept === dept && (r.dateStr || todayStr()) === targetDate);
 
   // ソート: 氏名でグループ化 → グループ内は時刻順（直帰・終日は最後）
   const retOrder = r => {
@@ -1105,15 +1170,19 @@ function buildDeptSection(dept, data) {
       const isDirect = r.return === '直帰';
       const isIn = ['在席','会議室','テレワーク'].includes(r.dest);
       const sc = isDirect ? 'status-direct' : isIn ? 'status-in' : 'status-out';
-      const isActive = isCurrentEntry(r);
+      // ハイライトは「今日を表示している」かつ進行中の予定のときのみ
+      const isActive = isViewingToday && isCurrentEntry(r);
       const row = document.createElement('div');
       row.className = 'sched-row ' + sc + (isActive ? ' row-active' : '');
       const activeDot = isActive ? '<span class="row-active-bar"></span>' : '';
+      const delBtn = isViewingToday
+        ? `<button class="del-btn" title="削除" onclick="deleteEntry('${r.id}')">✕</button>`
+        : '';
       row.innerHTML = `
         <span class="td-name">${escHtml(truncate(r.name,4))}${activeDot}</span>
         <span class="td-dest">${escHtml(truncate(r.dest,10))}</span>
         <span class="td-return">${escHtml(r.return)}</span>
-        <button class="del-btn" title="削除" onclick="deleteEntry('${r.id}')">✕</button>
+        ${delBtn}
       `;
       list.appendChild(row);
     });
@@ -1136,6 +1205,8 @@ function renderSignage() {
   const now = new Date();
   document.getElementById('last-updated').textContent =
     `最終更新 ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+
+  updateNavUI();
 }
 
 function deleteEntry(id) {
@@ -1143,6 +1214,56 @@ function deleteEntry(id) {
   saveData(data);
   if (USE_GAS) gasDelete(id).catch(()=>{});
   renderSignage();
+}
+
+// ===== 日付ナビゲーション（前後1週間） =====
+const NAV_RANGE_DAYS = 7;
+
+function addDaysStr(baseStr, diff) {
+  const parts = baseStr.split('-').map(Number);
+  const d = new Date(parts[0], parts[1]-1, parts[2]);
+  d.setDate(d.getDate() + diff);
+  return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+}
+
+function dayDiff(dateStr) {
+  const parts = dateStr.split('-').map(Number);
+  const d = new Date(parts[0], parts[1]-1, parts[2]);
+  const t = new Date();
+  t.setHours(0,0,0,0);
+  return Math.round((d - t) / 86400000);
+}
+
+function navigateDay(diff) {
+  const next = addDaysStr(getViewDateStr(), diff);
+  const d = dayDiff(next);
+  if (d < -NAV_RANGE_DAYS || d > NAV_RANGE_DAYS) return; // 範囲外は無視
+  viewDateStr = (d === 0) ? null : next;
+  renderSignage();
+  autoFitFont();
+}
+
+function updateNavUI() {
+  const target = getViewDateStr();
+  const d = dayDiff(target);
+
+  const prevBtn = document.getElementById('nav-prev');
+  const nextBtn = document.getElementById('nav-next');
+  if (prevBtn) prevBtn.classList.toggle('nav-disabled', d <= -NAV_RANGE_DAYS);
+  if (nextBtn) nextBtn.classList.toggle('nav-disabled', d >= NAV_RANGE_DAYS);
+
+  const badge = document.getElementById('nav-day-badge');
+  if (!badge) return;
+  if (d === 0) {
+    badge.style.display = 'none';
+  } else {
+    const days = ['日','月','火','水','木','金','土'];
+    const parts = target.split('-').map(Number);
+    const dateObj = new Date(parts[0], parts[1]-1, parts[2]);
+    const label = `${parts[1]}/${parts[2]}(${days[dateObj.getDay()]})` + (d > 0 ? ' の予定' : ' の予定（過去）');
+    badge.textContent = label;
+    badge.style.display = 'block';
+  }
 }
 
 async function refreshSignage() {
@@ -1158,12 +1279,40 @@ refreshSignage();
 window.addEventListener('resize', () => { autoFitFont(); });
 window.addEventListener('orientationchange', () => { setTimeout(() => { autoFitFont(); }, 200); });
 
+// ===== スワイプ操作（スマホ縦画面） =====
+(function setupSwipe() {
+  const target = document.getElementById('signage-columns');
+  if (!target) return;
+  let startX = 0, startY = 0, tracking = false;
+
+  target.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    tracking = true;
+  }, { passive: true });
+
+  target.addEventListener('touchend', (e) => {
+    if (!tracking) return;
+    tracking = false;
+    const dx = e.changedTouches[0].clientX - startX;
+    const dy = e.changedTouches[0].clientY - startY;
+    // 横方向の移動が縦方向より大きく、かつ一定距離以上の場合のみスワイプ判定
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (dx < 0) navigateDay(1);   // 左スワイプ → 翌日
+      else navigateDay(-1);          // 右スワイプ → 前日
+    }
+  }, { passive: true });
+})();
+
 // ===== NAVIGATION =====
 function showSignage() {
   document.getElementById('signage-view').style.display = 'flex';
   document.getElementById('input-view').style.display = 'none';
   document.getElementById('profile-view').style.display = 'none';
+  viewDateStr = null; // 今日表示に戻す
   renderSignage();
+  autoFitFont();
 }
 
 function openInput() {
@@ -1413,6 +1562,7 @@ function autoFitFont() {
   const availableH = view.clientHeight
     - (view.querySelector('.signage-header')?.offsetHeight || 0)
     - (view.querySelector('.signage-footer')?.offsetHeight || 0)
+    - (document.getElementById('nav-day-badge')?.offsetHeight || 0)
     - 24;
 
   let fontSize = 1.25;
