@@ -252,7 +252,7 @@
     font-size: 1rem;
     color: var(--text-dim);
     letter-spacing: 0.1em;
-    flex: 0 0 6rem;
+    flex: 0 0 28%;
     min-width: 0;
   }
   .th-dest {
@@ -267,7 +267,7 @@
     color: var(--text-dim);
     letter-spacing: 0.1em;
     text-align: left;
-    flex: 0 0 6rem;
+    flex: 0 0 16%;
     white-space: nowrap;
   }
 
@@ -275,7 +275,7 @@
     display: flex;
     align-items: center;
     gap: 1em;
-    padding: 0.28em 0.9em;
+    padding: 6px 18px;
     border-bottom: 1px solid rgba(30,45,69,0.6);
     animation: fadeIn 0.35s ease;
   }
@@ -301,11 +301,11 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    flex: 0 0 6rem;
+    flex: 0 0 28%;
     min-width: 0;
   }
   .td-name-blank {
-    flex: 0 0 6rem;
+    flex: 0 0 28%;
     min-width: 0;
   }
   .td-dest {
@@ -327,7 +327,7 @@
     color: var(--accent);
     text-align: left;
     white-space: nowrap;
-    flex: 0 0 6rem;
+    flex: 0 0 16%;
   }
   .del-btn {
     display: none;
@@ -1667,7 +1667,7 @@ function autoFitFont() {
     if (lines <= 0) return 7.0;
     const pxPerLine = availH / lines;
     // 行の高さ = フォントサイズ × 1.6（line-height相当）
-    const size = (pxPerLine / remPx) / 1.6;
+    const size = (pxPerLine / remPx) / 2.0;
     return Math.min(Math.max(Math.round(size * 100) / 100, MIN), 7.0);
   }
 
@@ -1676,7 +1676,7 @@ function autoFitFont() {
     col.style.fontSize = s + 'rem';
     while (s > MIN) {
       let overW = false;
-      for (const cell of col.querySelectorAll('.td-name, .td-dest')) {
+      for (const cell of col.querySelectorAll('.td-dest')) {
         if (cell.scrollWidth > cell.clientWidth + 2) { overW = true; break; }
       }
       if (!overW) break;
@@ -1698,7 +1698,7 @@ function autoFitFont() {
     while (s > MIN) {
       let overW = false;
       for (const col of [colLeft, colRight]) {
-        for (const cell of col.querySelectorAll('.td-name, .td-dest')) {
+        for (const cell of col.querySelectorAll('.td-dest')) {
           if (cell.scrollWidth > cell.clientWidth + 2) { overW = true; break; }
         }
       }
