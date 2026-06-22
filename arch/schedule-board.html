@@ -1304,10 +1304,10 @@ function dayDiff(dateStr) {
 function navigateDay(diff) {
   const next = addDaysStr(getViewDateStr(), diff);
   const d = dayDiff(next);
-  if (d < -NAV_RANGE_DAYS || d > NAV_RANGE_DAYS) return; // 範囲外は無視
+  if (d < -NAV_RANGE_DAYS || d > NAV_RANGE_DAYS) return;
   viewDateStr = (d === 0) ? null : next;
   renderSignage();
-  autoFitFont();
+  requestAnimationFrame(() => requestAnimationFrame(() => autoFitFont()));
 }
 
 function updateNavUI() {
@@ -1338,7 +1338,11 @@ async function refreshSignage() {
     try { await gasGet(); } catch(e) { console.warn('GAS取得失敗:', e); }
   }
   renderSignage();
-  autoFitFont();
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      autoFitFont();
+    });
+  });
 }
 
 setInterval(refreshSignage, 30000);
@@ -1377,9 +1381,9 @@ function showSignage() {
   document.getElementById('signage-view').style.display = 'flex';
   document.getElementById('input-view').style.display = 'none';
   document.getElementById('profile-view').style.display = 'none';
-  viewDateStr = null; // 今日表示に戻す
+  viewDateStr = null;
   renderSignage();
-  autoFitFont();
+  requestAnimationFrame(() => requestAnimationFrame(() => autoFitFont()));
 }
 
 function openInput() {
@@ -1638,55 +1642,70 @@ function autoFitFont() {
   const colLeft  = document.getElementById('col-left');
   const colRight = document.getElementById('col-right');
   if (!view || !colLeft || !colRight) return;
+  if (view.clientHeight === 0) return;
 
-  colLeft.style.fontSize  = '';
-  colRight.style.fontSize = '';
+  const headerH = view.querySelector('.signage-header')?.offsetHeight || 0;
+  const footerH = view.querySelector('.signage-footer')?.offsetHeight || 0;
+  const badgeH  = document.getElementById('nav-day-badge')?.offsetHeight || 0;
+  const availH  = view.clientHeight - headerH - footerH - badgeH - 24;
 
-  const availableH = view.clientHeight
-    - (view.querySelector('.signage-header')?.offsetHeight || 0)
-    - (view.querySelector('.signage-footer')?.offsetHeight || 0)
-    - (document.getElementById('nav-day-badge')?.offsetHeight || 0)
-    - 24;
+  // 実際の1remのpxサイズを取得
+  const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
 
-  // 5remから始めて縦・横両方が収まるサイズを探す（左右独立）
-  const INIT = 5.0;
   const MIN  = 0.6;
   const STEP = 0.05;
 
-  function fitCol(col) {
-    let size = INIT;
-    while (size > MIN) {
-      col.style.fontSize = size + 'rem';
-      const overflowH = col.scrollHeight > availableH;
-      const cells = col.querySelectorAll('.td-name, .td-dest');
-      let overflowW = false;
-      for (const cell of cells) {
-        if (cell.scrollWidth > cell.clientWidth + 1) { overflowW = true; break; }
+  function countLines(col) {
+    const rows    = col.querySelectorAll('.sched-row').length;
+    const headers = col.querySelectorAll('.sched-header').length;
+    const labels  = col.querySelectorAll('.dept-label').length;
+    const empties = col.querySelectorAll('.empty-state').length;
+    return rows + headers * 0.5 + labels * 0.6 + empties * 0.5 + 0.3;
+  }
+
+  function calcSize(lines) {
+    if (lines <= 0) return 7.0;
+    const pxPerLine = availH / lines;
+    // 行の高さ = フォントサイズ × 1.6（line-height相当）
+    const size = (pxPerLine / remPx) / 1.6;
+    return Math.min(Math.max(Math.round(size * 100) / 100, MIN), 7.0);
+  }
+
+  function applyAndTrimW(col, size) {
+    let s = size;
+    col.style.fontSize = s + 'rem';
+    while (s > MIN) {
+      let overW = false;
+      for (const cell of col.querySelectorAll('.td-name, .td-dest')) {
+        if (cell.scrollWidth > cell.clientWidth + 2) { overW = true; break; }
       }
-      if (!overflowH && !overflowW) break;
-      size = Math.round((size - STEP) * 100) / 100;
+      if (!overW) break;
+      s = Math.round((s - STEP) * 100) / 100;
+      col.style.fontSize = s + 'rem';
     }
   }
 
   const isTwoCol = window.innerWidth >= 768 || window.innerWidth > window.innerHeight;
   if (isTwoCol) {
-    fitCol(colLeft);
-    fitCol(colRight);
+    applyAndTrimW(colLeft,  calcSize(countLines(colLeft)));
+    applyAndTrimW(colRight, calcSize(countLines(colRight)));
   } else {
-    // 縦1列：両方同サイズで縦横収まるまで縮小
-    let size = INIT;
-    while (size > MIN) {
-      colLeft.style.fontSize  = size + 'rem';
-      colRight.style.fontSize = size + 'rem';
-      const totalH = colLeft.scrollHeight + colRight.scrollHeight;
-      let overflowW = false;
+    const totalLines = countLines(colLeft) + countLines(colRight);
+    const size = calcSize(totalLines);
+    colLeft.style.fontSize  = size + 'rem';
+    colRight.style.fontSize = size + 'rem';
+    let s = size;
+    while (s > MIN) {
+      let overW = false;
       for (const col of [colLeft, colRight]) {
         for (const cell of col.querySelectorAll('.td-name, .td-dest')) {
-          if (cell.scrollWidth > cell.clientWidth + 1) { overflowW = true; break; }
+          if (cell.scrollWidth > cell.clientWidth + 2) { overW = true; break; }
         }
       }
-      if (totalH <= availableH && !overflowW) break;
-      size = Math.round((size - STEP) * 100) / 100;
+      if (!overW) break;
+      s = Math.round((s - STEP) * 100) / 100;
+      colLeft.style.fontSize  = s + 'rem';
+      colRight.style.fontSize = s + 'rem';
     }
   }
 }
