@@ -93,13 +93,13 @@
   .nav-day-badge {
     display: none;
     text-align: center;
-    font-size: 0.75rem;
+    font-size: 1.5rem;
     font-weight: 700;
     color: var(--accent);
     background: rgba(255,123,26,0.12);
     border: 1px solid var(--accent);
     border-radius: 20px;
-    padding: 4px 16px;
+    padding: 6px 24px;
     letter-spacing: 0.05em;
     white-space: nowrap;
     margin: 6px auto;
@@ -240,6 +240,37 @@
     flex-direction: column;
   }
 
+  .sched-header {
+    display: flex;
+    align-items: center;
+    gap: 1em;
+    padding: 0.28em 0.9em;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2px;
+  }
+  .th-name {
+    font-size: 1rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    flex: 0 0 6rem;
+    min-width: 0;
+  }
+  .th-dest {
+    font-size: 1rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .th-return {
+    font-size: 1rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    text-align: left;
+    flex: 0 0 6rem;
+    white-space: nowrap;
+  }
+
   .sched-row {
     display: flex;
     align-items: center;
@@ -270,7 +301,11 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    flex: 0 0 4.5em;
+    flex: 0 0 6rem;
+    min-width: 0;
+  }
+  .td-name-blank {
+    flex: 0 0 6rem;
     min-width: 0;
   }
   .td-dest {
@@ -281,15 +316,18 @@
     text-overflow: ellipsis;
     flex: 1 1 auto;
     min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
   }
   .td-return {
     font-family: var(--font-mono);
     font-size: 1.1em;
     font-weight: 700;
     color: var(--accent);
-    text-align: right;
+    text-align: left;
     white-space: nowrap;
-    flex: 0 0 auto;
+    flex: 0 0 6rem;
   }
   .del-btn {
     display: none;
@@ -395,13 +433,13 @@
   }
   .row-active-bar {
     display: inline-block;
-    width: 6px;
-    height: 6px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
     background: var(--accent);
-    box-shadow: 0 0 6px var(--accent);
+    box-shadow: 0 0 8px var(--accent);
     animation: pulse 1.5s infinite;
-    margin-left: 6px;
+    flex-shrink: 0;
     vertical-align: middle;
   }
 
@@ -953,8 +991,8 @@ const GAS_TOKEN = 'arch-2026-x7kP9mQ2vL';
 const USE_GAS = GAS_URL.startsWith('https://');
 
 const DEPTS = ['営業', '総務', '制作'];
-const LEFT_DEPTS  = ['営業', '総務'];  // 左列
-const RIGHT_DEPTS = ['制作'];          // 右列
+const LEFT_DEPTS  = ['営業', '制作'];  // 左列
+const RIGHT_DEPTS = ['総務'];          // 右列
 const STORAGE_KEY  = 'schedule_data_v2';
 const PROFILE_KEY  = 'user_profile_v1';
 const DATE_KEY     = 'schedule_date_v2';
@@ -1165,21 +1203,51 @@ function buildDeptSection(dept, data) {
     const list = document.createElement('div');
     list.className = 'schedule-list';
 
+    // 列見出し行
+    const header = document.createElement('div');
+    header.className = 'sched-header';
+    header.innerHTML = `
+      <span class="th-name">氏名</span>
+      <span class="th-dest">行先</span>
+      <span class="th-return">帰着予定</span>
+    `;
+    list.appendChild(header);
+
+    // 人ごとに「現在進行中」のIDセットを取得（今日表示時のみ）
+    const activeIdSet = isViewingToday ? (() => {
+      // 名前ごとにグループ化してgetCurrentEntryIdを適用
+      const byName = {};
+      sorted.forEach(r => {
+        if (!byName[r.name]) byName[r.name] = [];
+        byName[r.name].push(r);
+      });
+      const result = new Set();
+      Object.values(byName).forEach(rows => {
+        getCurrentEntryId(rows).forEach(id => result.add(id));
+      });
+      return result;
+    })() : new Set();
+
+    let prevName = null;
     sorted.forEach(r => {
       const isDirect = r.return === '直帰';
       const isIn = ['在席','会議室','テレワーク'].includes(r.dest);
       const sc = isDirect ? 'status-direct' : isIn ? 'status-in' : 'status-out';
-      // ハイライトは「今日を表示している」かつ進行中の予定のときのみ
-      const isActive = isViewingToday && isCurrentEntry(r);
+      const isActive = activeIdSet.has(r.id);
       const row = document.createElement('div');
       row.className = 'sched-row ' + sc + (isActive ? ' row-active' : '');
-      const activeDot = isActive ? '<span class="row-active-bar"></span>' : '';
       const delBtn = isViewingToday
         ? `<button class="del-btn" title="削除" onclick="deleteEntry('${r.id}')">✕</button>`
         : '';
+      // 同じ人が続く場合は氏名を空欄にする
+      const nameDisplay = r.name === prevName
+        ? '<span class="td-name td-name-blank"></span>'
+        : `<span class="td-name">${escHtml(truncate(r.name,4))}</span>`;
+      const activeDot = isActive ? '<span class="row-active-bar"></span>' : '';
+      prevName = r.name;
       row.innerHTML = `
-        <span class="td-name">${escHtml(truncate(r.name,4))}${activeDot}</span>
-        <span class="td-dest">${escHtml(truncate(r.dest,10))}</span>
+        ${nameDisplay}
+        <span class="td-dest">${activeDot}${escHtml(truncate(r.dest,10))}</span>
         <span class="td-return">${escHtml(r.return)}</span>
         ${delBtn}
       `;
@@ -1536,19 +1604,35 @@ function truncate(str, maxLen) {
 }
 
 // 現在進行中の予定かどうか判定
-function isCurrentEntry(r) {
-  const ret = r.return;
-  // 終日・直帰は常にハイライト
-  if (ret === '直帰' || ret === '終日') return true;
-  // 時刻指定は帰着前のみ
+// 同じ人の予定リストの中で「現在進行中」のIDを1件特定する
+// → 帰着時刻（直帰・終日含む）が現在以降で最も早い1件のみ
+function getCurrentEntryId(rows) {
   const now = new Date();
-  const [hh, mm] = ret.split(':').map(Number);
-  const returnMinutes = hh * 60 + mm;
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  return nowMinutes <= returnMinutes;
+
+  // 各行に「比較用の分数」を付与（直帰=1440=深夜0時扱い、終日=1441）
+  const withMinutes = rows.map(r => {
+    let minutes;
+    if (r.return === '直帰') minutes = 1440;
+    else if (r.return === '終日') minutes = 1441;
+    else {
+      const [hh, mm] = r.return.split(':').map(Number);
+      minutes = hh * 60 + mm;
+    }
+    return { id: r.id, minutes };
+  });
+
+  // 現在時刻以降で最も早い1件のみ現在進行中
+  const upcoming = withMinutes
+    .filter(r => r.minutes >= nowMinutes)
+    .sort((a, b) => a.minutes - b.minutes);
+
+  const activeIds = new Set();
+  if (upcoming.length > 0) activeIds.add(upcoming[0].id);
+  return activeIds;
 }
 
-// サイネージ全行が画面内に収まるようフォントサイズを自動調整
+// サイネージ全行が画面内に収まるようフォントサイズを自動調整（左右独立）
 function autoFitFont() {
   const view = document.getElementById('signage-view');
   const colLeft  = document.getElementById('col-left');
@@ -1564,44 +1648,46 @@ function autoFitFont() {
     - (document.getElementById('nav-day-badge')?.offsetHeight || 0)
     - 24;
 
-  let fontSize = 1.25;
-  const MIN = 0.6;
+  // 5remから始めて縦・横両方が収まるサイズを探す（左右独立）
+  const INIT = 5.0;
+  const MIN  = 0.6;
   const STEP = 0.05;
 
-  function applySize(size) {
-    colLeft.style.fontSize  = size + 'rem';
-    colRight.style.fontSize = size + 'rem';
-  }
-
-  // 氏名・行先セルが省略記号で切れていないか判定（true=まだはみ出している）
-  function hasRowOverflow() {
-    const cols = [colLeft, colRight];
-    for (const col of cols) {
+  function fitCol(col) {
+    let size = INIT;
+    while (size > MIN) {
+      col.style.fontSize = size + 'rem';
+      const overflowH = col.scrollHeight > availableH;
       const cells = col.querySelectorAll('.td-name, .td-dest');
+      let overflowW = false;
       for (const cell of cells) {
-        if (cell.scrollWidth > cell.clientWidth + 1) return true;
+        if (cell.scrollWidth > cell.clientWidth + 1) { overflowW = true; break; }
       }
-      // 行自体が列幅をはみ出して横スクロールを要求していないか
-      const lists = col.querySelectorAll('.schedule-list');
-      for (const t of lists) {
-        if (t.scrollWidth > col.clientWidth + 1) return true;
-      }
+      if (!overflowH && !overflowW) break;
+      size = Math.round((size - STEP) * 100) / 100;
     }
-    return false;
   }
 
-  applySize(fontSize);
-
-  while (fontSize > MIN) {
-    applySize(fontSize);
-    const isTwoCol = window.innerWidth >= 768 || window.innerWidth > window.innerHeight;
-    const maxH = isTwoCol
-      ? Math.max(colLeft.scrollHeight, colRight.scrollHeight)
-      : colLeft.scrollHeight + colRight.scrollHeight;
-    const overflowH = maxH > availableH;
-    const overflowW = hasRowOverflow();
-    if (!overflowH && !overflowW) break;
-    fontSize = Math.round((fontSize - STEP) * 100) / 100;
+  const isTwoCol = window.innerWidth >= 768 || window.innerWidth > window.innerHeight;
+  if (isTwoCol) {
+    fitCol(colLeft);
+    fitCol(colRight);
+  } else {
+    // 縦1列：両方同サイズで縦横収まるまで縮小
+    let size = INIT;
+    while (size > MIN) {
+      colLeft.style.fontSize  = size + 'rem';
+      colRight.style.fontSize = size + 'rem';
+      const totalH = colLeft.scrollHeight + colRight.scrollHeight;
+      let overflowW = false;
+      for (const col of [colLeft, colRight]) {
+        for (const cell of col.querySelectorAll('.td-name, .td-dest')) {
+          if (cell.scrollWidth > cell.clientWidth + 1) { overflowW = true; break; }
+        }
+      }
+      if (totalH <= availableH && !overflowW) break;
+      size = Math.round((size - STEP) * 100) / 100;
+    }
   }
 }
 
