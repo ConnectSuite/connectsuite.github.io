@@ -623,7 +623,7 @@ function todayStr() {
 function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 function escHtml(s) {
   if (!s) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 function truncate(str, maxLen) {
   if (!str) return '';
@@ -792,15 +792,20 @@ updateClock();
 function getCurrentEntryIds(rows) {
   const now = new Date();
   const nowMin = now.getHours()*60 + now.getMinutes();
-  const withMin = rows.map(r => {
-    let m;
-    if (r.return === '直帰') m = 1440;
-    else if (r.return === '終日') m = 1441;
-    else { const [h,mm] = r.return.split(':').map(Number); m = h*60+mm; }
-    return { id: r.id, m };
+  const activeIds = [];
+  rows.forEach(r => {
+    // 直帰・終日は「一時的な外出中」ではないためハイライト対象外
+    if (r.return === '直帰' || r.return === '終日') return;
+    if (!/^\d{2}:\d{2}$/.test(r.return)) return;
+    const [rh, rm] = r.return.split(':').map(Number);
+    if (rh*60 + rm < nowMin) return; // 既に帰着時刻を過ぎている
+    if (r.start && /^\d{2}:\d{2}$/.test(r.start)) {
+      const [sh, sm] = r.start.split(':').map(Number);
+      if (sh*60 + sm > nowMin) return; // まだ出発時刻前
+    }
+    activeIds.push(r.id);
   });
-  const upcoming = withMin.filter(r => r.m >= nowMin).sort((a,b) => a.m-b.m);
-  return new Set(upcoming.length > 0 ? [upcoming[0].id] : []);
+  return new Set(activeIds);
 }
 
 // ============================================================
@@ -1097,7 +1102,10 @@ function renderDestHistory(q) {
   const box = document.getElementById('dest-history');
   const items = loadDestHistory().filter(d => !PRESET_DESTS.includes(d) && (!q || d.toLowerCase().includes(q.toLowerCase()))).slice(0,10);
   if (items.length === 0) { box.style.display = 'none'; return; }
-  box.innerHTML = items.map(d => `<div class="dest-history-item" onmousedown="selectDestHistory('${escHtml(d)}')">${escHtml(d)}</div>`).join('');
+  box.innerHTML = items.map(d => `<div class="dest-history-item" data-value="${escHtml(d)}">${escHtml(d)}</div>`).join('');
+  box.querySelectorAll('.dest-history-item').forEach(el => {
+    el.addEventListener('mousedown', () => selectDestHistory(el.dataset.value));
+  });
   box.style.display = 'block';
 }
 function selectDestHistory(val) {
@@ -1241,6 +1249,7 @@ function renderReqEntries() {
           <span style="display:flex;align-items:center;gap:8px;">
             <span style="font-family:var(--font-mono);color:var(--accent);font-size:0.9rem;">入電 ${escHtml(r.time)}</span>
             <button class="icon-btn${editRequestId===r.id?' active-edit':''}" onclick="startEditRequest('${r.id}')">✎</button>
+            <button class="icon-btn del" onclick="deleteRequest('${r.id}')">✕</button>
           </span>
         </div>
         <div style="font-size:0.88rem;color:var(--text-dim);margin-top:4px;">${escHtml(r.purpose)}</div>
