@@ -87,6 +87,13 @@
     .lower-area { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 0 0 38%; min-height: 0; }
   }
 
+  /* 4Kサイネージ（50インチ・3840x2160想定）：同じ50インチ画面で解像度が
+     1920x1080時代の2倍になった分、文字が物理的に半分の大きさに見えてしまうため
+     表示全体をzoomで2倍にして、これまで検証済みの見やすさを維持する */
+  @media (min-width: 2800px) {
+    #signage-view { zoom: 2; }
+  }
+
   /* ===== フロアカラム ===== */
   .floor-col {
     background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
@@ -1559,6 +1566,19 @@ async function seedInitialStaffIfEmpty() {
     }
   }
 }
+
+// ============================================================
+//  デバッグ表示（?debug=1 を付けた時だけ、画面サイズ確認用に左下へ表示）
+//  現地の実機で確認できない時、写真や口頭で数値を教えてもらうためのもの
+// ============================================================
+(function setupDebugOverlay() {
+  if (new URLSearchParams(location.search).get('debug') !== '1') return;
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:9999;background:rgba(0,0,0,0.75);color:#0f8;font-family:monospace;font-size:14px;padding:6px 10px;border-radius:6px;pointer-events:none;white-space:pre;';
+  const zoomVal = getComputedStyle(document.getElementById('signage-view')).zoom;
+  box.textContent = `${window.innerWidth}x${window.innerHeight} / DPR ${window.devicePixelRatio} / zoom ${zoomVal}`;
+  document.body.appendChild(box);
+})();
 
 // ============================================================
 //  初期化
