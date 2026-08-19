@@ -169,6 +169,17 @@
   .rtd-staff  { flex: 0 0 26%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .staff-pending { color: var(--yellow); font-size: 0.78rem; border: 1px solid var(--yellow); border-radius: 10px; padding: 1px 8px; }
 
+  /* PC横画面：文字が小さく感じるとのフィードバックを受けて、行の文字サイズ・行高を拡大。
+     informationはrequestと同じ高さで間延びしていたため、内容量(4行程度)に合わせて縮める */
+  @media (orientation: landscape), (min-width: 768px) {
+    .sched-row { font-size: 1.3rem; padding: 7px 2px; }
+    .td-start { font-size: 1.1rem; }
+    .td-return { font-size: 1.3rem; }
+    .info-row { font-size: 1.3rem; line-height: 1.35; padding: 4px 0; }
+    .req-row { font-size: 1.3rem; padding: 5px 0; }
+    #info-panel { align-self: start; max-height: 200px; }
+  }
+
   /* ===== フッター ===== */
   .signage-footer {
     display: flex; align-items: center; justify-content: space-between;
