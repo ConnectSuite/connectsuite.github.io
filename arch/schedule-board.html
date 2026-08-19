@@ -273,6 +273,8 @@
   .list-empty { font-size: 0.8rem; color: var(--text-dim); }
 
   .entry-dest { flex: 1; font-size: 0.95rem; }
+  .entry-date { display: inline-block; font-size: 0.72rem; font-family: var(--font-mono); color: var(--accent); border: 1px solid var(--accent); border-radius: 8px; padding: 1px 6px; margin-right: 6px; vertical-align: middle; }
+  .entry-date-today { background: var(--accent); color: #fff; font-weight: 700; }
   .entry-times { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; white-space: nowrap; }
   .entry-start { font-size: 0.72rem; color: var(--text-dim); font-family: var(--font-mono); }
   .entry-ret { font-family: var(--font-mono); color: var(--accent); font-weight: 700; }
@@ -665,6 +667,12 @@ function dayDiff(dateStr) {
   const d = new Date(p[0], p[1]-1, p[2]);
   const t = new Date(); t.setHours(0,0,0,0);
   return Math.round((d - t) / 86400000);
+}
+// dateStrを「8/19(水)」のような短い表示用ラベルに変換
+function formatDateShort(dateStr) {
+  const p = dateStr.split('-').map(Number);
+  const d = new Date(p[0], p[1]-1, p[2]);
+  return `${p[1]}/${p[2]}(${DAYS[d.getDay()]})`;
 }
 function isPortraitMode() {
   return !(window.innerWidth >= 768 || window.innerWidth > window.innerHeight);
@@ -1144,19 +1152,27 @@ function selectDestHistory(val) {
 function renderMyEntries() {
   const profile = loadProfile();
   if (!profile) return;
-  const data = loadSchedule().filter(r => r.floor === profile.floor && r.name === profile.name);
+  const data = loadSchedule()
+    .filter(r => r.floor === profile.floor && r.name === profile.name && dayDiff(r.dateStr) >= 0)
+    .sort((a, b) => dayDiff(a.dateStr) - dayDiff(b.dateStr));
   const list = document.getElementById('my-entries-list');
   if (data.length === 0) { list.innerHTML = '<div class="list-empty">まだ登録はありません</div>'; return; }
-  list.innerHTML = data.map(r => `
+  list.innerHTML = data.map(r => {
+    const isToday = dayDiff(r.dateStr) === 0;
+    return `
     <div class="list-row${editScheduleId===r.id?' editing':''}">
-      <span class="entry-dest">${escHtml(r.dest)}</span>
+      <span class="entry-dest">
+        <span class="entry-date${isToday?' entry-date-today':''}">${isToday?'今日':formatDateShort(r.dateStr)}</span>
+        ${escHtml(r.dest)}
+      </span>
       <span class="entry-times">
         ${r.start ? `<span class="entry-start">出発 ${escHtml(r.start)}</span>` : ''}
         <span class="entry-ret">${escHtml(r.return)}</span>
       </span>
       <button class="icon-btn${editScheduleId===r.id?' active-edit':''}" onclick="startEditSchedule('${r.id}')">✎</button>
       <button class="icon-btn del" onclick="deleteSchedule('${r.id}')">✕</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function startEditSchedule(id) {
