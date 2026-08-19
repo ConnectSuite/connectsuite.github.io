@@ -952,9 +952,18 @@ function renderSignage() {
   updateNavUI();
 }
 
+let refreshInFlight = false;
 async function refreshSignage() {
-  if (USE_GAS) { try { await gasGet(); } catch(e) { console.warn('GAS取得失敗:', e); } }
-  renderSignage();
+  // 前回のGAS取得が30秒以内に終わらなかった場合、次のタイマーで重ねてリクエストしない
+  // （リクエストが詰まって互いに待たせ合い、余計に遅くなるのを防ぐ）
+  if (refreshInFlight) return;
+  refreshInFlight = true;
+  try {
+    if (USE_GAS) { try { await gasGet(); } catch(e) { console.warn('GAS取得失敗:', e); } }
+    renderSignage();
+  } finally {
+    refreshInFlight = false;
+  }
 }
 setInterval(refreshSignage, 30000);
 window.addEventListener('resize', () => renderSignage());
