@@ -58,11 +58,14 @@ function doPost(e) {
 //  全データ取得
 // ============================================================
 function getAllData() {
+  // SpreadsheetApp.openById() は呼び出しごとに数百ms〜数秒かかる重い処理のため、
+  // 4シート分まとめて読む際は1回だけ開いて使い回す（以前は4回開いていて遅かった）
+  const ss = SpreadsheetApp.openById(SHEET_ID);
   return {
-    schedules: getSheetData(SHEET_SCHEDULE),
-    requests:  getSheetData(SHEET_REQUEST),
-    infos:     getSheetData(SHEET_INFO),
-    staff:     getSheetData(SHEET_STAFF),
+    schedules: getSheetData(ss, SHEET_SCHEDULE),
+    requests:  getSheetData(ss, SHEET_REQUEST),
+    infos:     getSheetData(ss, SHEET_INFO),
+    staff:     getSheetData(ss, SHEET_STAFF),
   };
 }
 
@@ -176,8 +179,7 @@ function deleteRow(sheetName, id) {
 // ============================================================
 //  汎用：シートデータ取得（オブジェクト配列）
 // ============================================================
-function getSheetData(sheetName) {
-  const ss    = SpreadsheetApp.openById(SHEET_ID);
+function getSheetData(ss, sheetName) {
   const sheet = ss.getSheetByName(sheetName);
   if (!sheet) return [];
   const [headers, ...rows] = sheet.getDataRange().getValues();
