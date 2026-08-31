@@ -86,7 +86,7 @@
     .board-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      grid-template-rows: 1fr 240px 1fr;
+      grid-template-rows: 2fr 240px 1fr;
       grid-template-areas:
         "col2f col1f"
         "col2f info"
@@ -189,7 +189,8 @@
     .th-name.full, .td-name.full { flex-basis: 18%; }
     .th-start, .td-start { flex-basis: 9%; }
     .th-return, .td-return { flex-basis: 12%; }
-    .th-start, .th-return { text-align: left; }
+    .th-start, .th-return, .td-start, .td-return { text-align: left; }
+    .td-start { padding-right: 16px; box-sizing: border-box; }
     .td-start { font-size: 1.9rem; }
     .td-return { font-size: 2.24rem; }
     .info-row { font-size: 1.87rem; line-height: 1.35; padding: 4px 0; }
