@@ -86,7 +86,7 @@
     .board-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      grid-template-rows: 1fr auto 1fr;
+      grid-template-rows: 1fr 240px 1fr;
       grid-template-areas:
         "col2f col1f"
         "col2f info"
@@ -194,7 +194,7 @@
     .td-return { font-size: 2.24rem; }
     .info-row { font-size: 1.87rem; line-height: 1.35; padding: 4px 0; }
     .req-row { font-size: 1.87rem; padding: 5px 0; }
-    #info-panel { align-self: start; max-height: 240px; }
+    #info-panel { max-height: 240px; }
   }
 
   /* ===== フッター ===== */
@@ -1223,11 +1223,12 @@ function submitSchedule() {
   let start = startMode === 'time' ? document.getElementById('start-time').value : '';
 
   // 出発時間・帰着予定を両方とも時刻で指定していて、帰着が出発より前になっている場合は
-  // 入力ミス（欄の取り違え）の可能性が高いので確認する
+  // 入力欄の取り違えとみなし、確認なしで自動的に入れ替える
+  // （確認ダイアログ方式は、内容を読まずにOKを押されて逆に正しい値を入れ替えてしまう事故が起きたため廃止）
+  let timesSwapped = false;
   if (start && /^\d{2}:\d{2}$/.test(start) && /^\d{2}:\d{2}$/.test(ret) && ret < start) {
-    const swap = confirm(`帰着予定（${ret}）が出発時間（${start}）より前になっています。\n入力欄を取り違えていませんか？\n\nOK：出発と帰着を入れ替えて登録する\nキャンセル：登録せずに自分で直す`);
-    if (!swap) return;
     [start, ret] = [ret, start];
+    timesSwapped = true;
   }
 
   saveDestHistory(dest);
@@ -1239,7 +1240,7 @@ function submitSchedule() {
       data[idx] = { ...data[idx], dest, return: ret, start, updatedAt: new Date().toISOString() };
       saveSchedule(data);
       if (USE_GAS) gasPost({ action:'editSchedule', id: editScheduleId, patch:{ dest, return:ret, start } });
-      showToast('予定を更新しました');
+      showToast(timesSwapped ? '予定を更新しました（出発/帰着の順番を自動修正）' : '予定を更新しました');
     }
     cancelScheduleEdit();
   } else {
@@ -1252,7 +1253,7 @@ function submitSchedule() {
     if (USE_GAS) gasPost({ action:'addSchedule', entry });
     document.getElementById('dest-input').value = '';
     setStartMode('none'); setReturnMode('chokki');
-    showToast('予定を登録しました');
+    showToast(timesSwapped ? '予定を登録しました（出発/帰着の順番を自動修正）' : '予定を登録しました');
   }
   renderDayOptions();
   renderMyEntries();
