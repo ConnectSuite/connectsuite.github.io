@@ -172,12 +172,12 @@
   /* PC横画面：文字が小さく感じるとのフィードバックを受けて、行の文字サイズ・行高を拡大。
      informationはrequestと同じ高さで間延びしていたため、内容量(4行程度)に合わせて縮める */
   @media (orientation: landscape), (min-width: 768px) {
-    .sched-row { font-size: 1.3rem; padding: 7px 2px; }
-    .td-start { font-size: 1.32rem; }
-    .td-return { font-size: 1.56rem; }
-    .info-row { font-size: 1.3rem; line-height: 1.35; padding: 4px 0; }
-    .req-row { font-size: 1.3rem; padding: 5px 0; }
-    #info-panel { align-self: start; max-height: 200px; }
+    .sched-row { font-size: 1.56rem; padding: 8px 2px; }
+    .td-start { font-size: 1.58rem; }
+    .td-return { font-size: 1.87rem; }
+    .info-row { font-size: 1.56rem; line-height: 1.35; padding: 4px 0; }
+    .req-row { font-size: 1.56rem; padding: 5px 0; }
+    #info-panel { align-self: start; max-height: 220px; }
   }
 
   /* ===== フッター ===== */
@@ -907,7 +907,7 @@ function buildFloorSection(floor, allSchedules, staffList) {
     row.className = 'sched-row' + (isActive ? ' row-active' : '');
     row.innerHTML = `
       <span class="td-name${fullMode?' full':''}${r.empty && showName ? ' is-empty':''}">${escHtml(nameText)}</span>
-      <span class="td-dest">${dot}${escHtml(r.empty ? '' : truncate(r.dest,8))}</span>
+      <span class="td-dest">${dot}${escHtml(r.empty ? '' : truncate(r.dest, fullMode ? 20 : 8))}</span>
       <span class="td-start">${escHtml(startVal)}</span>
       <span class="td-return">${escHtml(r.empty ? '' : r.return)}</span>
     `;
@@ -1205,8 +1205,16 @@ function submitSchedule() {
   const dest = document.getElementById('dest-input').value.trim();
   if (!dest) { showToast('行先を入力してください', true); return; }
 
-  const ret = returnMode === 'chokki' ? '直帰' : returnMode === 'shujitsu' ? '終日' : document.getElementById('return-time').value;
-  const start = startMode === 'time' ? document.getElementById('start-time').value : '';
+  let ret = returnMode === 'chokki' ? '直帰' : returnMode === 'shujitsu' ? '終日' : document.getElementById('return-time').value;
+  let start = startMode === 'time' ? document.getElementById('start-time').value : '';
+
+  // 出発時間・帰着予定を両方とも時刻で指定していて、帰着が出発より前になっている場合は
+  // 入力ミス（欄の取り違え）の可能性が高いので確認する
+  if (start && /^\d{2}:\d{2}$/.test(start) && /^\d{2}:\d{2}$/.test(ret) && ret < start) {
+    const swap = confirm(`帰着予定（${ret}）が出発時間（${start}）より前になっています。\n入力欄を取り違えていませんか？\n\nOK：出発と帰着を入れ替えて登録する\nキャンセル：登録せずに自分で直す`);
+    if (!swap) return;
+    [start, ret] = [ret, start];
+  }
 
   saveDestHistory(dest);
   const data = loadSchedule();
