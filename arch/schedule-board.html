@@ -57,6 +57,7 @@
   }
 
   .signage-title { font-size: 0.95rem; font-weight: 700; letter-spacing: 0.15em; flex-shrink: 0; }
+  .version-badge { font-size: 0.55em; font-weight: 400; color: var(--text-dim); letter-spacing: 0; margin-left: 0.6em; vertical-align: middle; }
 
   .header-date { text-align: center; line-height: 1; white-space: nowrap; padding: 0 8px; }
   .header-date .hd-month, .header-date .hd-day-unit { font-size: 0.8rem; vertical-align: middle; }
@@ -190,7 +191,7 @@
     .th-start, .td-start { flex-basis: 9%; }
     .th-return, .td-return { flex-basis: 12%; }
     .th-start, .th-return, .td-start, .td-return { text-align: left; }
-    .td-start { padding-right: 16px; box-sizing: border-box; }
+    .td-start { padding-right: 32px; box-sizing: border-box; }
     .td-start { font-size: 1.9rem; }
     .td-return { font-size: 2.24rem; }
     .info-row { font-size: 1.87rem; line-height: 1.35; padding: 4px 0; }
@@ -385,7 +386,7 @@
 <!-- ===== SIGNAGE VIEW ===== -->
 <div id="signage-view">
   <div class="signage-header">
-    <div class="signage-title">行動予定表</div>
+    <div class="signage-title">行動予定表<span id="version-badge" class="version-badge"></span></div>
     <div class="header-date" id="header-date"></div>
     <div class="clock-block">
       <div class="date-label" id="date-label"></div>
@@ -1626,6 +1627,34 @@ async function seedInitialStaffIfEmpty() {
     }
   }
 }
+
+// ============================================================
+//  自動アップデート
+//  デプロイのたびに APP_VERSION と version.txt を更新することで、
+//  ページを開きっぱなしの端末（サイネージTV・入力用スマホ等）が
+//  古いJSのまま動き続けてしまう問題（出発/帰着入れ替え不具合の原因になった）を防ぐ。
+//  入力画面（#input-view）で作業中は途中で流されないよう自動リロードを見送る。
+//  GitHub PagesはHTMLにCache-Control: max-age=600を付けるため、素の location.reload()
+//  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
+//  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
+// ============================================================
+const APP_VERSION = '1.6.0';
+(function showVersionBadge() {
+  const el = document.getElementById('version-badge');
+  if (el) el.textContent = `Ver.${APP_VERSION}`;
+})();
+async function checkForUpdate() {
+  if (document.getElementById('input-view').style.display !== 'none') return;
+  try {
+    const res = await fetch(`version.txt?t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) return;
+    const v = (await res.text()).trim();
+    if (v && v !== APP_VERSION) {
+      location.href = location.pathname + '?v=' + encodeURIComponent(v);
+    }
+  } catch (e) { /* オフライン等は無視して次回再試行 */ }
+}
+setInterval(checkForUpdate, 60000);
 
 // ============================================================
 //  デバッグ表示（?debug=1 を付けた時だけ、画面サイズ確認用に左下へ表示）
