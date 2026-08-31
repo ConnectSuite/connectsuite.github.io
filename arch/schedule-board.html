@@ -661,6 +661,12 @@ function escHtml(s) {
   if (!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+// id はinline onclick(...)のJS文字列リテラルにそのまま埋め込んでいる箇所があるため、
+// escHtml（HTMLエンティティ化）だけでは属性値のデコード後にJS文字列を抜け出せてしまう。
+// GAS API はトークンさえあれば誰でもidに任意の値をPOSTできてしまう（＝サーバー側での
+// id形式チェックが無い）ため、描画時に英数字・ハイフン・アンダースコアのみへ強制的に
+// 絞り込むことでonclick文字列注入を防ぐ（保存データ自体は変更しない、表示時の安全策）。
+function safeId(s) { return String(s).replace(/[^a-zA-Z0-9_-]/g, ''); }
 function truncate(str, maxLen) {
   if (!str) return '';
   let count = 0, result = '';
@@ -1113,7 +1119,7 @@ function renderDayOptions() {
   const days = getSelectableDays();
   const box = document.getElementById('day-options');
   box.innerHTML = days.map((d,i) =>
-    `<button class="opt-btn${i===0?' active':''}" data-date="${d.dateStr}" onclick="setDayMode('${d.dateStr}',this)">${d.label}${d.label==='今日'?'':'('+d.dow+')'}</button>`
+    `<button class="opt-btn${i===0?' active':''}" data-date="${escHtml(d.dateStr)}" onclick="setDayMode('${safeId(d.dateStr)}',this)">${d.label}${d.label==='今日'?'':'('+d.dow+')'}</button>`
   ).join('');
   dayMode = days[0].dateStr;
 }
@@ -1185,8 +1191,8 @@ function renderMyEntries() {
         ${r.start ? `<span class="entry-start">出発 ${escHtml(r.start)}</span>` : ''}
         <span class="entry-ret">${escHtml(r.return)}</span>
       </span>
-      <button class="icon-btn${editScheduleId===r.id?' active-edit':''}" onclick="startEditSchedule('${r.id}')">✎</button>
-      <button class="icon-btn del" onclick="deleteSchedule('${r.id}')">✕</button>
+      <button class="icon-btn${editScheduleId===r.id?' active-edit':''}" onclick="startEditSchedule('${safeId(r.id)}')">✎</button>
+      <button class="icon-btn del" onclick="deleteSchedule('${safeId(r.id)}')">✕</button>
     </div>`;
   }).join('');
 }
@@ -1297,7 +1303,7 @@ function renderReqEntries() {
     const staffBlock = showAssignUI ? `
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px;">
           <span class="staff-pending">${r.staff ? '担当者を変更' : '担当者未定'}</span>
-          <select style="width:auto;flex:1;padding:8px 10px;font-size:0.9rem;" onchange="assignRequestStaff('${r.id}', this.value)">
+          <select style="width:auto;flex:1;padding:8px 10px;font-size:0.9rem;" onchange="assignRequestStaff('${safeId(r.id)}', this.value)">
             <option value="" disabled selected>担当者を選択…</option>
             ${staffOptions}
           </select>
@@ -1307,7 +1313,7 @@ function renderReqEntries() {
         <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
           <span style="font-size:0.8rem;color:var(--text-dim);">担当：</span>
           <span style="font-size:0.95rem;font-weight:700;">${escHtml(r.staff)}</span>
-          <button class="icon-btn" style="width:auto;padding:2px 10px;font-size:0.72rem;" onclick="startReassign('${r.id}')">変更</button>
+          <button class="icon-btn" style="width:auto;padding:2px 10px;font-size:0.72rem;" onclick="startReassign('${safeId(r.id)}')">変更</button>
         </div>`;
 
     return `
@@ -1316,8 +1322,8 @@ function renderReqEntries() {
           <span style="font-weight:700;font-size:0.98rem;">${escHtml(r.client)}</span>
           <span style="display:flex;align-items:center;gap:8px;">
             <span style="font-family:var(--font-mono);color:var(--accent);font-size:0.9rem;">入電 ${escHtml(r.time)}</span>
-            <button class="icon-btn${editRequestId===r.id?' active-edit':''}" onclick="startEditRequest('${r.id}')">✎</button>
-            <button class="icon-btn del" onclick="deleteRequest('${r.id}')">✕</button>
+            <button class="icon-btn${editRequestId===r.id?' active-edit':''}" onclick="startEditRequest('${safeId(r.id)}')">✎</button>
+            <button class="icon-btn del" onclick="deleteRequest('${safeId(r.id)}')">✕</button>
           </span>
         </div>
         <div style="font-size:0.88rem;color:var(--text-dim);margin-top:4px;">${escHtml(r.purpose)}</div>
@@ -1413,8 +1419,8 @@ function renderInfoEntries() {
   list.innerHTML = data.map(r => `
     <div class="list-row${editInfoId===r.id?' editing':''}">
       <span class="entry-dest">${escHtml(r.text)}</span>
-      <button class="icon-btn${editInfoId===r.id?' active-edit':''}" onclick="startEditInfo('${r.id}')">✎</button>
-      <button class="icon-btn del" onclick="deleteInfo('${r.id}')">✕</button>
+      <button class="icon-btn${editInfoId===r.id?' active-edit':''}" onclick="startEditInfo('${safeId(r.id)}')">✎</button>
+      <button class="icon-btn del" onclick="deleteInfo('${safeId(r.id)}')">✕</button>
     </div>`).join('');
 }
 
@@ -1494,8 +1500,8 @@ function renderStaffEntries() {
       <div class="list-row${editStaffId===s.id?' editing':''}">
         <span class="staff-order-badge">${escHtml(String(s.order))}</span>
         <span class="entry-dest">${escHtml(s.last)} ${escHtml(s.first||'')}</span>
-        <button class="icon-btn${editStaffId===s.id?' active-edit':''}" onclick="startEditStaff('${s.id}')">✎</button>
-        <button class="icon-btn del" onclick="deleteStaff('${s.id}')">✕</button>
+        <button class="icon-btn${editStaffId===s.id?' active-edit':''}" onclick="startEditStaff('${safeId(s.id)}')">✎</button>
+        <button class="icon-btn del" onclick="deleteStaff('${safeId(s.id)}')">✕</button>
       </div>`).join('');
   });
   list.innerHTML = html;
@@ -1638,7 +1644,7 @@ async function seedInitialStaffIfEmpty() {
 //  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
 //  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
 // ============================================================
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.6.1';
 (function showVersionBadge() {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = `Ver.${APP_VERSION}`;
