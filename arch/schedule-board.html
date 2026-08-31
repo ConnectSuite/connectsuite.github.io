@@ -186,8 +186,10 @@
      informationはrequestと同じ高さで間延びしていたため、内容量(4行程度)に合わせて縮める */
   @media (orientation: landscape), (min-width: 768px) {
     .sched-row { font-size: 1.87rem; padding: 9px 2px; }
-    .th-start, .td-start { flex-basis: 13%; }
-    .th-return, .td-return { flex-basis: 16%; }
+    .th-name.full, .td-name.full { flex-basis: 18%; }
+    .th-start, .td-start { flex-basis: 9%; }
+    .th-return, .td-return { flex-basis: 12%; }
+    .th-start, .th-return { text-align: left; }
     .td-start { font-size: 1.9rem; }
     .td-return { font-size: 2.24rem; }
     .info-row { font-size: 1.87rem; line-height: 1.35; padding: 4px 0; }
