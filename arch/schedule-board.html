@@ -78,13 +78,26 @@
 
   /* ===== メインコンテンツエリア ===== */
   .signage-main { display: flex; flex-direction: column; flex: 1; gap: 8px; min-height: 0; }
+  .board-grid { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; overflow-y: auto; }
 
-  .schedule-area { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; overflow-y: auto; }
-  .lower-area { display: flex; flex-direction: column; gap: 8px; }
-
+  /* PC/タブレット：2Fの人数が多く縦が窮屈だったため、2Fは全高を使い、
+     1F→information→requestを右側に縦積みする構成に変更（2026-08-31） */
   @media (orientation: landscape), (min-width: 768px) {
-    .schedule-area { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 0 0 62%; overflow: hidden; }
-    .lower-area { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 0 0 38%; min-height: 0; }
+    .board-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr auto 1fr;
+      grid-template-areas:
+        "col2f col1f"
+        "col2f info"
+        "col2f req";
+      gap: 16px;
+      overflow: hidden;
+    }
+    #col-2f { grid-area: col2f; }
+    #col-1f { grid-area: col1f; }
+    #info-panel { grid-area: info; }
+    #req-panel { grid-area: req; }
   }
 
   /* 4Kサイネージ（50インチ・3840x2160想定）：同じ50インチ画面で解像度が
@@ -172,12 +185,12 @@
   /* PC横画面：文字が小さく感じるとのフィードバックを受けて、行の文字サイズ・行高を拡大。
      informationはrequestと同じ高さで間延びしていたため、内容量(4行程度)に合わせて縮める */
   @media (orientation: landscape), (min-width: 768px) {
-    .sched-row { font-size: 1.56rem; padding: 8px 2px; }
-    .td-start { font-size: 1.58rem; }
-    .td-return { font-size: 1.87rem; }
-    .info-row { font-size: 1.56rem; line-height: 1.35; padding: 4px 0; }
-    .req-row { font-size: 1.56rem; padding: 5px 0; }
-    #info-panel { align-self: start; max-height: 220px; }
+    .sched-row { font-size: 1.87rem; padding: 9px 2px; }
+    .td-start { font-size: 1.9rem; }
+    .td-return { font-size: 2.24rem; }
+    .info-row { font-size: 1.87rem; line-height: 1.35; padding: 4px 0; }
+    .req-row { font-size: 1.87rem; padding: 5px 0; }
+    #info-panel { align-self: start; max-height: 240px; }
   }
 
   /* ===== フッター ===== */
@@ -225,9 +238,8 @@
       padding-bottom: 60px;
     }
     .signage-main { overflow: visible; flex: none; }
-    .schedule-area { overflow: visible; flex: none; height: auto; }
+    .board-grid { overflow: visible; flex: none; height: auto; }
     .floor-col { overflow: visible; flex-shrink: 0; height: auto; max-height: none; }
-    .lower-area { overflow: visible; }
     .lower-panel { overflow: visible; flex-shrink: 0; height: auto; max-height: none; }
     .signage-footer { position: fixed; left: 0; right: 0; bottom: 0; padding: 8px 16px; background: var(--bg); border-top: 1px solid var(--border); z-index: 50; margin-top: 0; }
   }
@@ -382,26 +394,24 @@
   <div class="signage-main">
     <div class="nav-day-badge" id="nav-day-badge"></div>
 
-    <div class="schedule-area">
-      <div class="floor-col" id="col-2f"></div>
-      <div class="floor-col" id="col-1f"></div>
-    </div>
+    <div class="board-grid">
+    <div class="floor-col" id="col-2f"></div>
+    <div class="floor-col" id="col-1f"></div>
 
-    <div class="lower-area">
-      <div class="lower-panel" id="info-panel">
-        <div class="panel-label">information</div>
-        <div id="info-list"><div class="empty-state">登録なし</div></div>
+    <div class="lower-panel" id="info-panel">
+      <div class="panel-label">information</div>
+      <div id="info-list"><div class="empty-state">登録なし</div></div>
+    </div>
+    <div class="lower-panel" id="req-panel">
+      <div class="panel-label">request</div>
+      <div class="req-header">
+        <span class="rth-client">クライアント</span>
+        <span class="rth-time">入電</span>
+        <span class="rth-purpose">要件</span>
+        <span class="rth-staff">担当</span>
       </div>
-      <div class="lower-panel" id="req-panel">
-        <div class="panel-label">request</div>
-        <div class="req-header">
-          <span class="rth-client">クライアント</span>
-          <span class="rth-time">入電</span>
-          <span class="rth-purpose">要件</span>
-          <span class="rth-staff">担当</span>
-        </div>
-        <div id="req-list"><div class="empty-state">登録なし</div></div>
-      </div>
+      <div id="req-list"><div class="empty-state">登録なし</div></div>
+    </div>
     </div>
   </div>
 
