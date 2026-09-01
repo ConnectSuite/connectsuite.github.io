@@ -890,7 +890,10 @@ function buildFloorSection(floor, allSchedules, staffList) {
   });
 
   const allRows = groups.flatMap(g => g.rows.map(r => ({ ...r, __name: g.name })));
-  const activeIds = getCurrentEntryIds(allRows.filter(r => !r.empty));
+  // 「現在進行中」ハイライトは今日の予定にのみ意味があるため、他日を閲覧中は判定しない
+  // （時刻の一致だけを見ていたため、未来日の予定でも現在時刻とたまたま重なると
+  //   誤って点灯していた不具合の修正）
+  const activeIds = targetDate === todayStr() ? getCurrentEntryIds(allRows.filter(r => !r.empty)) : new Set();
 
   const section = document.createElement('div');
   section.innerHTML = `<div class="floor-label">${floor}</div>`;
@@ -1652,7 +1655,7 @@ async function seedInitialStaffIfEmpty() {
 //  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
 //  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
 // ============================================================
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.8.1';
 (function showVersionBadge() {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = `Ver.${APP_VERSION}`;
