@@ -1265,7 +1265,7 @@ function submitSchedule() {
     if (idx !== -1) {
       data[idx] = { ...data[idx], dest, return: ret, start, updatedAt: new Date().toISOString() };
       saveSchedule(data);
-      if (USE_GAS) gasPost({ action:'editSchedule', id: editScheduleId, patch:{ dest, return:ret, start } });
+      if (USE_GAS) gasPost({ action:'editSchedule', id: editScheduleId, patch:{ dest, return:ret, start, appVersion: APP_VERSION } });
       showToast(timesSwapped ? '予定を更新しました（出発/帰着の順番を自動修正）' : '予定を更新しました');
     }
     cancelScheduleEdit();
@@ -1273,7 +1273,7 @@ function submitSchedule() {
     const target = dayMode || todayStr();
     const dup = data.find(r => r.floor===profile.floor && r.name===profile.name && r.dest===dest && r.return===ret && (r.dateStr||todayStr())===target);
     if (dup) { showToast('同じ予定が登録済みです', true); return; }
-    const entry = { id: genId(), floor: profile.floor, name: profile.name, dest, return: ret, start, dateStr: target, updatedAt: new Date().toISOString() };
+    const entry = { id: genId(), floor: profile.floor, name: profile.name, dest, return: ret, start, dateStr: target, updatedAt: new Date().toISOString(), appVersion: APP_VERSION };
     data.push(entry);
     saveSchedule(data);
     if (USE_GAS) gasPost({ action:'addSchedule', entry });
@@ -1360,7 +1360,7 @@ function assignRequestStaff(id, staffName) {
   if (idx !== -1) {
     data[idx].staff = staffName;
     saveRequest(data);
-    if (USE_GAS) gasPost({ action:'assignStaff', id, staff: staffName });
+    if (USE_GAS) gasPost({ action:'assignStaff', id, staff: staffName, appVersion: APP_VERSION });
     showToast('担当者を登録しました');
   }
   reassigningId = null;
@@ -1403,12 +1403,12 @@ function submitRequest() {
     if (idx !== -1) {
       data[idx] = { ...data[idx], client, time, purpose, updatedAt: new Date().toISOString() };
       saveRequest(data);
-      if (USE_GAS) gasPost({ action:'editRequest', id: editRequestId, patch:{ client, time, purpose } });
+      if (USE_GAS) gasPost({ action:'editRequest', id: editRequestId, patch:{ client, time, purpose, appVersion: APP_VERSION } });
       showToast('ご依頼を更新しました');
     }
     cancelRequestEdit();
   } else {
-    const entry = { id: genId(), client, time, purpose, staff: '', dateStr: todayStr(), updatedAt: new Date().toISOString() };
+    const entry = { id: genId(), client, time, purpose, staff: '', dateStr: todayStr(), updatedAt: new Date().toISOString(), appVersion: APP_VERSION };
     data.push(entry);
     saveRequest(data);
     if (USE_GAS) gasPost({ action:'addRequest', entry });
@@ -1471,12 +1471,12 @@ function submitInfo() {
     if (idx !== -1) {
       data[idx] = { ...data[idx], text };
       saveInfo(data);
-      if (USE_GAS) gasPost({ action:'editInfo', id: editInfoId, patch:{ text } });
+      if (USE_GAS) gasPost({ action:'editInfo', id: editInfoId, patch:{ text, appVersion: APP_VERSION } });
       showToast('お知らせを更新しました');
     }
     cancelInfoEdit();
   } else {
-    const entry = { id: genId(), text, createdAt: new Date().toISOString() };
+    const entry = { id: genId(), text, createdAt: new Date().toISOString(), appVersion: APP_VERSION };
     data.push(entry);
     saveInfo(data);
     if (USE_GAS) gasPost({ action:'addInfo', entry });
@@ -1593,7 +1593,7 @@ function submitStaff() {
     });
     saveStaff(all);
     if (USE_GAS) {
-      gasPost({ action:'editStaff', id: editStaffId, patch:{ last, first, floor, order: orderNum } });
+      gasPost({ action:'editStaff', id: editStaffId, patch:{ last, first, floor, order: orderNum, appVersion: APP_VERSION } });
       const bulk = Object.entries(newFloorMap).map(([id,order]) => ({id,order}))
         .concat(Object.entries(oldFloorMap).map(([id,order]) => ({id,order})));
       if (bulk.length) gasPost({ action:'bulkUpdateStaffOrder', updates: bulk });
@@ -1604,7 +1604,7 @@ function submitStaff() {
     const newId = genId();
     const newFloorMap = renumberFloor(all, floor, newId, orderNum);
     all = all.map(x => (x.floor === floor && newFloorMap[x.id] !== undefined) ? { ...x, order: newFloorMap[x.id] } : x);
-    const entry = { id: newId, last, first, floor, order: orderNum };
+    const entry = { id: newId, last, first, floor, order: orderNum, appVersion: APP_VERSION };
     all.push(entry);
     saveStaff(all);
     if (USE_GAS) {
@@ -1643,7 +1643,7 @@ const INITIAL_STAFF = [
 async function seedInitialStaffIfEmpty() {
   const current = loadStaff();
   if (current.length > 0) return; // 既にデータがあれば何もしない
-  const entries = INITIAL_STAFF.map(s => ({ id: genId(), ...s }));
+  const entries = INITIAL_STAFF.map(s => ({ id: genId(), ...s, appVersion: APP_VERSION }));
   saveStaff(entries);
   if (USE_GAS) {
     for (const entry of entries) {
@@ -1662,7 +1662,7 @@ async function seedInitialStaffIfEmpty() {
 //  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
 //  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
 // ============================================================
-const APP_VERSION = '1.9.2';
+const APP_VERSION = '1.10.0';
 (function showVersionBadge() {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = `Ver.${APP_VERSION}`;

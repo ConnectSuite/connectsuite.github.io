@@ -36,7 +36,7 @@ function doPost(e) {
 
     if (action === 'addRequest')     return jsonResponse(addRequest(body.entry));
     if (action === 'editRequest')    return jsonResponse(editRow(SHEET_REQUEST, body.id, body.patch));
-    if (action === 'assignStaff')    return jsonResponse(editRow(SHEET_REQUEST, body.id, { staff: body.staff }));
+    if (action === 'assignStaff')    return jsonResponse(editRow(SHEET_REQUEST, body.id, { staff: body.staff, appVersion: body.appVersion }));
     if (action === 'deleteRequest')  return jsonResponse(deleteRow(SHEET_REQUEST,  body.id));
 
     if (action === 'addInfo')        return jsonResponse(addInfo(body.entry));
@@ -47,6 +47,8 @@ function doPost(e) {
     if (action === 'editStaff')      return jsonResponse(editRow(SHEET_STAFF, body.id, body.patch));
     if (action === 'deleteStaff')    return jsonResponse(deleteRow(SHEET_STAFF, body.id));
     if (action === 'bulkUpdateStaffOrder') return jsonResponse(bulkUpdateStaffOrder(body.updates));
+
+    if (action === 'migrateAddVersionColumn') return jsonResponse(migrateAddVersionColumn());
 
     return jsonResponse({ error: 'unknown action' });
   } catch(err) {
@@ -73,11 +75,15 @@ function getAllData() {
 //  予定
 // ============================================================
 function addSchedule(entry) {
-  const sheet = getOrCreateSheet(SHEET_SCHEDULE, ['id','floor','name','dest','return','start','dateStr','updatedAt']);
+  // 実際のシートの列順は id/floor/name/dest/start/return/dateStr/updatedAt
+  // （過去に「start」列を手動追加した経緯があり、この並びが正）。
+  // 以前はここが return→start の順で書き込んでおり、新規登録のたびに
+  // 出発・帰着が列レベルですり替わって保存される不具合の真因だった（2026年9月修正）。
+  const sheet = getOrCreateSheet(SHEET_SCHEDULE, ['id','floor','name','dest','start','return','dateStr','updatedAt','appVersion']);
   appendRowAsText(sheet, [
     entry.id, entry.floor, entry.name, entry.dest,
-    entry.return, entry.start || '',
-    entry.dateStr, entry.updatedAt
+    entry.start || '', entry.return,
+    entry.dateStr, entry.updatedAt, entry.appVersion || ''
   ]);
   return { ok: true };
 }
@@ -87,11 +93,11 @@ function addSchedule(entry) {
 //  新規登録時はstaff（担当者）を空で保存する運用
 // ============================================================
 function addRequest(entry) {
-  const sheet = getOrCreateSheet(SHEET_REQUEST, ['id','client','time','purpose','staff','dateStr','updatedAt']);
+  const sheet = getOrCreateSheet(SHEET_REQUEST, ['id','client','time','purpose','staff','dateStr','updatedAt','appVersion']);
   appendRowAsText(sheet, [
     entry.id, entry.client, entry.time,
     entry.purpose, entry.staff || '',
-    entry.dateStr, entry.updatedAt
+    entry.dateStr, entry.updatedAt, entry.appVersion || ''
   ]);
   return { ok: true };
 }
@@ -100,8 +106,8 @@ function addRequest(entry) {
 //  お知らせ（information）
 // ============================================================
 function addInfo(entry) {
-  const sheet = getOrCreateSheet(SHEET_INFO, ['id','text','createdAt']);
-  appendRowAsText(sheet, [entry.id, entry.text, entry.createdAt]);
+  const sheet = getOrCreateSheet(SHEET_INFO, ['id','text','createdAt','appVersion']);
+  appendRowAsText(sheet, [entry.id, entry.text, entry.createdAt, entry.appVersion || '']);
   return { ok: true };
 }
 
@@ -110,15 +116,15 @@ function addInfo(entry) {
 //  列: id, last(苗字), first(名前), floor(フロア), order(表示順)
 // ============================================================
 function addStaff(entry) {
-  const sheet = getOrCreateSheet(SHEET_STAFF, ['id','last','first','floor','order']);
-  appendRowAsText(sheet, [entry.id, entry.last, entry.first || '', entry.floor, entry.order]);
+  const sheet = getOrCreateSheet(SHEET_STAFF, ['id','last','first','floor','order','appVersion']);
+  appendRowAsText(sheet, [entry.id, entry.last, entry.first || '', entry.floor, entry.order, entry.appVersion || '']);
   return { ok: true };
 }
 
 // 表示順の一括更新（並べ替え時、複数行のorderをまとめて書き換える）
 // updates: [{id, order}, ...]
 function bulkUpdateStaffOrder(updates) {
-  const sheet = getOrCreateSheet(SHEET_STAFF, ['id','last','first','floor','order']);
+  const sheet = getOrCreateSheet(SHEET_STAFF, ['id','last','first','floor','order','appVersion']);
   const data  = sheet.getDataRange().getValues();
   const headers = data[0];
   const idCol    = headers.indexOf('id');
@@ -198,6 +204,27 @@ function formatCellValue(val) {
     return `${val.getFullYear()}-${val.getMonth()+1}-${val.getDate()}`;
   }
   return String(val);
+}
+
+// ============================================================
+//  移行：既存シートに appVersion 列を追加する（1回実行すれば十分、既に列が
+//  ある場合は何もしない）。バグ調査時に「どのバージョンで登録されたデータか」
+//  を突き止められるようにするため、2026年9月に追加した。
+// ============================================================
+function migrateAddVersionColumn() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  [SHEET_SCHEDULE, SHEET_REQUEST, SHEET_INFO, SHEET_STAFF].forEach(name => {
+    const sheet = ss.getSheetByName(name);
+    if (!sheet) return;
+    const lastCol = sheet.getLastColumn();
+    const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    if (headers.indexOf('appVersion') !== -1) return;
+    const newCol = lastCol + 1;
+    const cell = sheet.getRange(1, newCol);
+    cell.setNumberFormat('@');
+    cell.setValue('appVersion');
+  });
+  return { ok: true };
 }
 
 // ============================================================
