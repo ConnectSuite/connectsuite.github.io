@@ -195,6 +195,10 @@
     .td-return { font-size: 2.24rem; }
     .info-row { font-size: 1.87rem; line-height: 1.35; padding: 4px 0; }
     .req-row { font-size: 1.87rem; padding: 5px 0; }
+    .rth-client, .rtd-client { flex-basis: 23%; }
+    .rth-time, .rtd-time { flex-basis: 9%; }
+    .rth-purpose, .rtd-purpose { flex-basis: 40%; }
+    .rth-staff, .rtd-staff { flex-basis: 28%; }
     #info-panel { max-height: 240px; }
   }
 
@@ -965,14 +969,15 @@ function renderSignage() {
   const today = todayStr();
   const requests = loadRequest().filter(r => (r.dateStr || today) === today);
   const reqList = document.getElementById('req-list');
+  const reqFullMode = !isPortraitMode();
   reqList.innerHTML = requests.length === 0
     ? '<div class="empty-state">登録なし</div>'
     : requests.map(r => `
       <div class="req-row">
-        <span class="rtd-client">${escHtml(truncate(r.client,8))}</span>
+        <span class="rtd-client">${escHtml(truncate(r.client, reqFullMode ? 14 : 8))}</span>
         <span class="rtd-time">${escHtml(r.time)}</span>
-        <span class="rtd-purpose">${escHtml(truncate(r.purpose,7))}</span>
-        <span class="rtd-staff">${r.staff ? escHtml(truncate(r.staff,4)) : '<span class="staff-pending">未定</span>'}</span>
+        <span class="rtd-purpose">${escHtml(truncate(r.purpose, reqFullMode ? 20 : 7))}</span>
+        <span class="rtd-staff">${r.staff ? escHtml(truncate(r.staff, reqFullMode ? 10 : 4)) : '<span class="staff-pending">未定</span>'}</span>
       </div>`).join('');
 
   const now = new Date();
@@ -999,14 +1004,15 @@ setInterval(refreshSignage, 30000);
 window.addEventListener('resize', () => renderSignage());
 window.addEventListener('orientationchange', () => setTimeout(renderSignage, 200));
 
-// PC等でキーボードの矢印キーでも日付を移動できるようにする。
+// PC等でキーボードの矢印キーでも日付を移動できるようにする（↑キーで今日に戻る）。
 // 入力欄にフォーカスがある間はカーソル移動に矢印キーを使うため、
 // サイネージ表示中（入力画面が非表示）かつフォーム要素にフォーカスが無い時だけ発動する。
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'ArrowUp') return;
   if (document.getElementById('signage-view').style.display === 'none') return;
   const tag = document.activeElement ? document.activeElement.tagName : '';
   if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+  if (e.key === 'ArrowUp') { viewDateStr = null; renderSignage(); return; }
   navigateDay(e.key === 'ArrowLeft' ? -1 : 1);
 });
 
@@ -1655,7 +1661,7 @@ async function seedInitialStaffIfEmpty() {
 //  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
 //  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
 // ============================================================
-const APP_VERSION = '1.8.1';
+const APP_VERSION = '1.9.0';
 (function showVersionBadge() {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = `Ver.${APP_VERSION}`;
