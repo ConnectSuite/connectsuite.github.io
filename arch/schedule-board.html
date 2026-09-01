@@ -65,8 +65,7 @@
   .header-date .hd-dow { font-size: 1.6rem; font-weight: 700; color: var(--accent); margin-left: 0.15em; line-height: 1; vertical-align: middle; }
 
   .clock-block { text-align: right; flex-shrink: 0; }
-  .date-label { font-size: 0.65rem; color: var(--text-dim); }
-  .clock { font-family: var(--font-mono); font-size: 1.0rem; color: var(--accent); line-height: 1; }
+  .clock { font-family: var(--font-mono); font-size: 1.5rem; color: var(--accent); line-height: 1; }
 
   /* PC(横)でヘッダーだけ少し大きく見せる（本文はscaleで別途拡大） */
   @media (orientation: landscape), (min-width: 768px) {
@@ -74,7 +73,7 @@
     .header-date .hd-month, .header-date .hd-day-unit { font-size: 1.1rem; }
     .header-date .hd-day-num { font-size: 3rem; }
     .header-date .hd-dow { font-size: 3rem; }
-    .clock { font-size: 1.6rem; }
+    .clock { font-size: 2.4rem; }
   }
 
   /* ===== メインコンテンツエリア ===== */
@@ -389,7 +388,6 @@
     <div class="signage-title">行動予定表<span id="version-badge" class="version-badge"></span></div>
     <div class="header-date" id="header-date"></div>
     <div class="clock-block">
-      <div class="date-label" id="date-label"></div>
       <div class="clock" id="clock">--:--:--</div>
     </div>
   </div>
@@ -823,7 +821,6 @@ function updateClock() {
   document.getElementById('clock').textContent = `${hh}:${mm}:${ss}`;
 
   const mo = now.getMonth()+1, d = now.getDate(), dow = DAYS[now.getDay()];
-  document.getElementById('date-label').textContent = `${now.getFullYear()}年${mo}月${d}日（${dow}）`;
   document.getElementById('header-date').innerHTML =
     `<span class="hd-month">${mo}月</span>` +
     `<span class="hd-day-num">${d}</span>` +
@@ -1644,7 +1641,7 @@ async function seedInitialStaffIfEmpty() {
 //  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
 //  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
 // ============================================================
-const APP_VERSION = '1.6.1';
+const APP_VERSION = '1.7.0';
 (function showVersionBadge() {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = `Ver.${APP_VERSION}`;
