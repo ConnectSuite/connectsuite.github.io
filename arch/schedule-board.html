@@ -877,6 +877,19 @@ function buildFloorSection(floor, allSchedules, staffList) {
     byName[r.name].push(r);
   });
 
+  // 今日の予定に限り、帰着から30分以上経過した「終わった用事」は行が増えて見づらいため非表示にする。
+  // 過去日を遡って閲覧する時は、記録として全件そのまま表示する（直帰・終日は対象外）
+  if (targetDate === todayStr()) {
+    const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+    Object.keys(byName).forEach(name => {
+      byName[name] = byName[name].filter(r => {
+        if (!/^\d{2}:\d{2}$/.test(r.return)) return true;
+        const [rh, rm] = r.return.split(':').map(Number);
+        return (nowMin - (rh * 60 + rm)) <= 30;
+      });
+    });
+  }
+
   const retOrder = r => r.return === '直帰' ? 2 : r.return === '終日' ? 3 : 1;
 
   // 表示順に沿って行グループを構築。予定なしは空行1件。
@@ -1293,6 +1306,10 @@ function submitSchedule() {
 }
 
 function deleteSchedule(id) {
+  const target = loadSchedule().find(r => r.id === id);
+  // 過去日の記録は残しておきたいとの要望のため、削除させない
+  // （一覧側は既に今日以降しか表示していないが、念のため関数側でも防ぐ）
+  if (target && dayDiff(target.dateStr) < 0) { showToast('過去の予定は削除できません', true); return; }
   saveSchedule(loadSchedule().filter(r => r.id !== id));
   if (USE_GAS) gasPost({ action:'deleteSchedule', id });
   if (editScheduleId === id) cancelScheduleEdit();
@@ -1662,7 +1679,7 @@ async function seedInitialStaffIfEmpty() {
 //  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
 //  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
 // ============================================================
-const APP_VERSION = '1.10.0';
+const APP_VERSION = '1.11.0';
 (function showVersionBadge() {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = `Ver.${APP_VERSION}`;
