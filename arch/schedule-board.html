@@ -71,7 +71,7 @@
   @media (orientation: landscape), (min-width: 768px) {
     .signage-title { font-size: 1.3rem; }
     .header-date .hd-month, .header-date .hd-day-unit { font-size: 1.1rem; }
-    .header-date .hd-day-num { font-size: 3rem; }
+    .header-date .hd-day-num { font-size: 5.25rem; }
     .header-date .hd-dow { font-size: 3rem; }
     .clock { font-size: 2.4rem; }
   }
@@ -1641,7 +1641,7 @@ async function seedInitialStaffIfEmpty() {
 //  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
 //  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
 // ============================================================
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.7.1';
 (function showVersionBadge() {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = `Ver.${APP_VERSION}`;
