@@ -788,12 +788,13 @@ function checkDayReset() {
 async function gasGet() {
   const res  = await fetch(`${GAS_URL}?action=get&token=${encodeURIComponent(GAS_TOKEN)}`);
   const json = await res.json();
-  if (json.error) { console.warn('GAS error:', json.error); return; }
+  if (json.error) { console.warn('GAS error:', json.error); return false; }
   if (json.schedules) saveSchedule(json.schedules);
   if (json.requests)  saveRequest(json.requests);
   if (json.infos)     saveInfo(json.infos);
   if (json.staff)     saveStaff(json.staff.map(s => ({...s, order: Number(s.order)||999})));
   localStorage.setItem(DATE_KEY, todayStr());
+  return true;
 }
 async function gasPost(body) {
   try {
@@ -1661,7 +1662,7 @@ async function seedInitialStaffIfEmpty() {
 //  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
 //  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
 // ============================================================
-const APP_VERSION = '1.9.0';
+const APP_VERSION = '1.9.1';
 (function showVersionBadge() {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = `Ver.${APP_VERSION}`;
@@ -1700,8 +1701,12 @@ setInterval(checkForUpdate, 60000);
   buildTimeSelect(document.getElementById('start-time'));
   buildTimeSelect(document.getElementById('req-time'));
 
-  if (USE_GAS) { try { await gasGet(); } catch(e) { console.warn('初回GAS取得失敗:', e); } }
-  await seedInitialStaffIfEmpty();
+  let gasOk = false;
+  if (USE_GAS) { try { gasOk = await gasGet(); } catch(e) { console.warn('初回GAS取得失敗:', e); } }
+  // GAS取得に失敗した端末では、ローカルに何も残っていない（＝空に見える）だけの可能性があるため、
+  // 初期データを誤って本番へ再投入してしまわないよう、取得に成功した時だけ空チェック・シードを行う
+  // （2026-09-01、これが原因で従業員マスタの初期6名が重複登録される事故が発生し修正）
+  if (!USE_GAS || gasOk) { await seedInitialStaffIfEmpty(); }
 
   showSignage();
   setInterval(refreshSignage, 30000);
