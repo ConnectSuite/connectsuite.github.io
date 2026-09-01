@@ -996,6 +996,17 @@ setInterval(refreshSignage, 30000);
 window.addEventListener('resize', () => renderSignage());
 window.addEventListener('orientationchange', () => setTimeout(renderSignage, 200));
 
+// PC等でキーボードの矢印キーでも日付を移動できるようにする。
+// 入力欄にフォーカスがある間はカーソル移動に矢印キーを使うため、
+// サイネージ表示中（入力画面が非表示）かつフォーム要素にフォーカスが無い時だけ発動する。
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  if (document.getElementById('signage-view').style.display === 'none') return;
+  const tag = document.activeElement ? document.activeElement.tagName : '';
+  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+  navigateDay(e.key === 'ArrowLeft' ? -1 : 1);
+});
+
 // ============================================================
 //  日付ナビゲーション
 // ============================================================
@@ -1641,7 +1652,7 @@ async function seedInitialStaffIfEmpty() {
 //  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
 //  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
 // ============================================================
-const APP_VERSION = '1.7.1';
+const APP_VERSION = '1.8.0';
 (function showVersionBadge() {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = `Ver.${APP_VERSION}`;
