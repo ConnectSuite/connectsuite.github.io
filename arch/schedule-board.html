@@ -26,11 +26,13 @@
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
+  html { overscroll-behavior-x: none; }
   body {
     font-family: var(--font-main);
     background: var(--bg);
     color: var(--text);
     min-height: 100vh;
+    overscroll-behavior-x: none;
   }
 
   /* ===== SIGNAGE VIEW ===== */
@@ -245,6 +247,13 @@
       max-height: none;
       overflow: visible;
       padding-bottom: 60px;
+      /* 横スワイプでの日付移動と、ブラウザの「端スワイプで戻る」ジェスチャーが
+         競合していたため、横方向のブラウザ標準ジェスチャーを無効化する
+         （縦スクロールはpan-yで維持） */
+      touch-action: pan-y;
+      /* 左右の余白が広すぎるとのフィードバックを受けて、スマホのみ狭くする */
+      padding-left: 12px;
+      padding-right: 12px;
     }
     .signage-main { overflow: visible; flex: none; }
     .board-grid { overflow: visible; flex: none; height: auto; }
@@ -377,6 +386,27 @@
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
   .toast.warn { background: var(--yellow); }
+
+  /* ===== 予定タップ時の詳細ポップアップ（スマホのみ） ===== */
+  .row-detail-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+    z-index: 400; align-items: center; justify-content: center; padding: 24px;
+  }
+  .row-detail-overlay.show { display: flex; }
+  .row-detail-card {
+    background: var(--surface2); border: 1px solid var(--accent); border-radius: 14px;
+    padding: 20px; width: 100%; max-width: 360px; box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  }
+  .row-detail-name { font-size: 1.2rem; font-weight: 700; margin-bottom: 12px; }
+  .row-detail-field { margin-bottom: 10px; line-height: 1.4; }
+  .row-detail-label {
+    display: block; font-size: 0.72rem; color: var(--text-dim); letter-spacing: 0.05em; margin-bottom: 2px;
+  }
+  .row-detail-times { display: flex; gap: 20px; }
+  .row-detail-close {
+    width: 100%; margin-top: 6px; padding: 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: none; color: var(--text-dim); font-family: var(--font-main); font-size: 0.9rem;
+  }
 
   /* ===== プロフィールビュー ===== */
   #profile-view { display: none; min-height: 100vh; padding: 28px 20px; max-width: 480px; margin: 0 auto; }
@@ -619,6 +649,18 @@
 </div>
 
 <div class="toast" id="toast">登録しました</div>
+
+<div class="row-detail-overlay" id="row-detail-overlay" onclick="hideRowDetail()">
+  <div class="row-detail-card" onclick="event.stopPropagation()">
+    <div class="row-detail-name" id="rd-name"></div>
+    <div class="row-detail-field"><span class="row-detail-label">行先</span><span id="rd-dest"></span></div>
+    <div class="row-detail-times">
+      <div class="row-detail-field"><span class="row-detail-label">出発</span><span id="rd-start"></span></div>
+      <div class="row-detail-field"><span class="row-detail-label">帰着</span><span id="rd-return"></span></div>
+    </div>
+    <button class="row-detail-close" onclick="hideRowDetail()">閉じる</button>
+  </div>
+</div>
 <script>
 // ============================================================
 //  設定
@@ -753,6 +795,18 @@ function showToast(msg, warn) {
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2400);
 }
+
+// スマホ縦画面で、行先などが省略されて見えない予定をタップした時に全文を表示する
+function showRowDetail(r) {
+  document.getElementById('rd-name').textContent = r.name;
+  document.getElementById('rd-dest').textContent = r.dest || '－';
+  document.getElementById('rd-start').textContent = r.start || '－';
+  document.getElementById('rd-return').textContent = r.ret || '－';
+  document.getElementById('row-detail-overlay').classList.add('show');
+}
+function hideRowDetail() {
+  document.getElementById('row-detail-overlay').classList.remove('show');
+}
 </script>
 <script>
 // ============================================================
@@ -823,7 +877,8 @@ function updateClock() {
   const hh = String(now.getHours()).padStart(2,'0');
   const mm = String(now.getMinutes()).padStart(2,'0');
   const ss = String(now.getSeconds()).padStart(2,'0');
-  document.getElementById('clock').textContent = `${hh}:${mm}:${ss}`;
+  // スマホ縦画面は右上の時計がはみ出していたため、秒を省いてHH:MMのみにする
+  document.getElementById('clock').textContent = isPortraitMode() ? `${hh}:${mm}` : `${hh}:${mm}:${ss}`;
 
   const mo = now.getMonth()+1, d = now.getDate(), dow = DAYS[now.getDay()];
   document.getElementById('header-date').innerHTML =
@@ -947,10 +1002,14 @@ function buildFloorSection(floor, allSchedules, staffList) {
     row.className = 'sched-row' + (isActive ? ' row-active' : '');
     row.innerHTML = `
       <span class="td-name${fullMode?' full':''}${r.empty && showName ? ' is-empty':''}">${escHtml(nameText)}</span>
-      <span class="td-dest">${dot}${escHtml(r.empty ? '' : truncate(r.dest, fullMode ? 20 : 8))}</span>
+      <span class="td-dest">${dot}${escHtml(r.empty ? '' : truncate(r.dest, fullMode ? 20 : 11))}</span>
       <span class="td-start">${escHtml(startVal)}</span>
       <span class="td-return">${escHtml(r.empty ? '' : r.return)}</span>
     `;
+    // スマホ縦画面のみ：行先などが省略されがちなので、タップで全文をポップアップ表示する
+    if (!r.empty && !fullMode) {
+      row.addEventListener('click', () => showRowDetail({ name: r.__name, dest: r.dest, start: startVal, ret: r.return }));
+    }
     section.appendChild(row);
   });
 
@@ -1679,7 +1738,7 @@ async function seedInitialStaffIfEmpty() {
 //  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
 //  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
 // ============================================================
-const APP_VERSION = '1.11.1';
+const APP_VERSION = '1.12.0';
 (function showVersionBadge() {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = `Ver.${APP_VERSION}`;
