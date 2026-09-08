@@ -182,7 +182,7 @@
   .rtd-time   { flex: 0 0 19%; text-align: center; font-family: var(--font-mono); color: var(--accent); font-weight: 700; display: flex; flex-direction: row; align-items: baseline; justify-content: center; gap: 0.4em; line-height: 1.2; }
   .rtd-time-date { font-size: 0.68em; font-weight: 500; opacity: 0.85; }
   .rtd-purpose{ flex: 0 0 27%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .rtd-staff  { flex: 0 0 26%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rtd-staff  { flex: 0 0 26%; white-space: nowrap; }
   .staff-pending { color: var(--yellow); font-size: 0.78rem; border: 1px solid var(--yellow); border-radius: 10px; padding: 1px 8px; }
   .req-row.done .rtd-client, .req-row.done .rtd-purpose, .req-row.done .rtd-staff { color: var(--text-dim); }
 
@@ -859,7 +859,7 @@ function hideRowDetail() {
 function showDetailPopup(title, fields) {
   document.getElementById('dp-title').textContent = title;
   document.getElementById('dp-fields').innerHTML = fields.map(f => `
-    <div class="detail-field">${f.label ? `<span class="detail-label">${escHtml(f.label)}</span>` : ''}${escHtml(f.value || '－')}</div>`).join('');
+    <div class="detail-field">${f.label ? `<span class="detail-label">${escHtml(f.label)}</span>` : ''}${f.html != null ? f.html : escHtml(f.value || '－')}</div>`).join('');
   document.getElementById('detail-overlay').classList.add('show');
 }
 function hideDetailPopup() {
@@ -871,7 +871,7 @@ function showRequestDetail(id) {
   showDetailPopup(r.client, [
     { label: '入電', value: `${formatMonthDay(r.dateStr || todayStr())} ${r.time}` },
     { label: '用件', value: r.purpose },
-    { label: '担当', value: r.staff || '未定' },
+    { label: '担当', html: r.staff ? escHtml(r.staff) : '<span class="staff-pending">未定</span>' },
   ]);
 }
 function showInfoDetail(id) {
@@ -1816,7 +1816,7 @@ async function seedInitialStaffIfEmpty() {
 //  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
 //  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
 // ============================================================
-const APP_VERSION = '1.13.5';
+const APP_VERSION = '1.13.6';
 (function showVersionBadge() {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = `Ver.${APP_VERSION}`;
