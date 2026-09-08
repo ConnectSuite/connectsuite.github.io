@@ -481,7 +481,7 @@ function buildReportHtml(data, title, pendingSectionLabel, charts) {
   const pendingTable = data.pendingRequests.length === 0
     ? `<p style="font-size:14px;color:#666;">未対応のご依頼はありません。</p>`
     : `<table style="border-collapse:collapse;width:100%;margin-bottom:8px;">
-        <tr><th ${th}>クライアント</th><th ${th}>要件</th><th ${th}>入電日</th><th ${th}>経過日数</th></tr>
+        <tr><th ${th}>クライアント</th><th ${th}>用件</th><th ${th}>入電日</th><th ${th}>経過日数</th></tr>
         ${data.pendingRequests.map(r => `
           <tr>
             <td ${td}>${esc(r.client)}</td>
