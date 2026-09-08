@@ -83,16 +83,16 @@
   .board-grid { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; overflow-y: auto; }
 
   /* PC/タブレット：2Fの人数が多く縦が窮屈だったため、2Fは全高を使い、
-     1F→information→requestを右側に縦積みする構成に変更（2026-08-31） */
+     1F→request→informationを右側に縦積みする構成に変更（2026-08-31、2026-09-08に並び順・高さ配分を変更） */
   @media (orientation: landscape), (min-width: 768px) {
     .board-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      grid-template-rows: 2fr 240px 1fr;
+      grid-template-rows: 1fr 1fr 1fr;
       grid-template-areas:
         "col2f col1f"
-        "col2f info"
-        "col2f req";
+        "col2f req"
+        "col2f info";
       gap: 16px;
       overflow: hidden;
     }
@@ -203,7 +203,6 @@
     .rth-time, .rtd-time { flex-basis: 15%; padding-right: 16px; box-sizing: border-box; }
     .rth-purpose, .rtd-purpose { flex-basis: 49%; }
     .rth-staff, .rtd-staff { flex-basis: 14%; text-align: right; }
-    #info-panel { max-height: 240px; }
   }
 
   /* ===== フッター ===== */
@@ -262,6 +261,7 @@
     .floor-col { overflow: visible; flex-shrink: 0; height: auto; max-height: none; }
     .lower-panel { overflow: visible; flex-shrink: 0; height: auto; max-height: none; }
     .signage-footer { position: fixed; left: 0; right: 0; bottom: 0; padding: 8px 16px; background: var(--bg); border-top: 1px solid var(--border); z-index: 50; margin-top: 0; }
+    .req-row, .info-row { cursor: pointer; }
   }
 
   /* ===== 入力ビュー ===== */
@@ -410,6 +410,26 @@
     background: none; color: var(--text-dim); font-family: var(--font-main); font-size: 1.08rem;
   }
 
+  /* ===== ご依頼／お知らせタップ時の詳細ポップアップ（スマホのみ） ===== */
+  .detail-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+    z-index: 400; align-items: center; justify-content: center; padding: 24px;
+  }
+  .detail-overlay.show { display: flex; }
+  .detail-card {
+    background: var(--surface2); border: 1px solid var(--accent); border-radius: 14px;
+    padding: 20px; width: 100%; max-width: 360px; box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  }
+  .detail-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 12px; }
+  .detail-field { margin-bottom: 10px; line-height: 1.4; font-size: 1.15rem; }
+  .detail-label {
+    display: block; font-size: 0.86rem; color: var(--text-dim); letter-spacing: 0.05em; margin-bottom: 2px;
+  }
+  .detail-close {
+    width: 100%; margin-top: 6px; padding: 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: none; color: var(--text-dim); font-family: var(--font-main); font-size: 1.08rem;
+  }
+
   /* ===== プロフィールビュー ===== */
   #profile-view { display: none; min-height: 100vh; padding: 28px 20px; max-width: 480px; margin: 0 auto; }
   .profile-header { margin-bottom: 28px; }
@@ -438,10 +458,6 @@
     <div class="floor-col" id="col-2f"></div>
     <div class="floor-col" id="col-1f"></div>
 
-    <div class="lower-panel" id="info-panel">
-      <div class="panel-label">information</div>
-      <div id="info-list"><div class="empty-state">登録なし</div></div>
-    </div>
     <div class="lower-panel" id="req-panel">
       <div class="panel-label">request</div>
       <div class="req-header">
@@ -451,6 +467,10 @@
         <span class="rth-staff">担当</span>
       </div>
       <div id="req-list"><div class="empty-state">登録なし</div></div>
+    </div>
+    <div class="lower-panel" id="info-panel">
+      <div class="panel-label">information</div>
+      <div id="info-list"><div class="empty-state">登録なし</div></div>
     </div>
     </div>
   </div>
@@ -663,6 +683,14 @@
     <button class="row-detail-close" onclick="hideRowDetail()">閉じる</button>
   </div>
 </div>
+
+<div class="detail-overlay" id="detail-overlay" onclick="hideDetailPopup()">
+  <div class="detail-card" onclick="event.stopPropagation()">
+    <div class="detail-title" id="dp-title"></div>
+    <div id="dp-fields"></div>
+    <button class="detail-close" onclick="hideDetailPopup()">閉じる</button>
+  </div>
+</div>
 <script>
 // ============================================================
 //  設定
@@ -825,6 +853,31 @@ function showRowDetail(r) {
 }
 function hideRowDetail() {
   document.getElementById('row-detail-overlay').classList.remove('show');
+}
+
+// スマホ縦画面で、ご依頼・お知らせが省略されて見えない項目をタップした時に全文を表示する
+function showDetailPopup(title, fields) {
+  document.getElementById('dp-title').textContent = title;
+  document.getElementById('dp-fields').innerHTML = fields.map(f => `
+    <div class="detail-field">${f.label ? `<span class="detail-label">${escHtml(f.label)}</span>` : ''}${escHtml(f.value || '－')}</div>`).join('');
+  document.getElementById('detail-overlay').classList.add('show');
+}
+function hideDetailPopup() {
+  document.getElementById('detail-overlay').classList.remove('show');
+}
+function showRequestDetail(id) {
+  const r = loadRequest().find(x => x.id === id);
+  if (!r) return;
+  showDetailPopup(r.client, [
+    { label: '入電', value: `${formatMonthDay(r.dateStr || todayStr())} ${r.time}` },
+    { label: '用件', value: r.purpose },
+    { label: '担当', value: r.staff || '未定' },
+  ]);
+}
+function showInfoDetail(id) {
+  const r = loadInfo().find(x => x.id === id);
+  if (!r) return;
+  showDetailPopup('information', [{ label: '', value: r.text }]);
 }
 </script>
 <script>
@@ -1048,14 +1101,13 @@ function renderSignage() {
   col2f.appendChild(buildFloorSection('2F', schedules, staffList));
   col1f.appendChild(buildFloorSection('1F', schedules, staffList));
 
-  // information
+  // information（PC横：パネルの高さ内に収まる分だけ表示、overflow:hiddenで自動的に切れる）
   const infos = loadInfo();
   const infoList = document.getElementById('info-list');
-  const maxLines = !isPortraitMode() ? 4 : null; // PC横は最大4行
-  const shownInfos = maxLines ? infos.slice(0, maxLines) : infos;
-  infoList.innerHTML = shownInfos.length === 0
+  const infoTapMode = isPortraitMode();
+  infoList.innerHTML = infos.length === 0
     ? '<div class="empty-state">登録なし</div>'
-    : shownInfos.map(r => `<div class="info-row"><span class="info-dot"></span><span class="info-text">${escHtml(r.text)}</span></div>`).join('');
+    : infos.map(r => `<div class="info-row"${infoTapMode ? ` onclick="showInfoDetail('${safeId(r.id)}')"` : ''}><span class="info-dot"></span><span class="info-text">${escHtml(r.text)}</span></div>`).join('');
 
   // request
   const today = todayStr();
@@ -1066,7 +1118,7 @@ function renderSignage() {
   reqList.innerHTML = requests.length === 0
     ? '<div class="empty-state">登録なし</div>'
     : requests.map(r => `
-      <div class="req-row${r.staff ? ' done' : ''}">
+      <div class="req-row${r.staff ? ' done' : ''}"${reqFullMode ? '' : ` onclick="showRequestDetail('${safeId(r.id)}')"`}>
         <span class="rtd-client">${escHtml(truncate(r.client, reqFullMode ? 14 : 8))}</span>
         <span class="rtd-time"><span class="rtd-time-date">${escHtml(formatMonthDay(r.dateStr || today))}</span><span class="rtd-time-clock">${escHtml(r.time)}</span></span>
         <span class="rtd-purpose">${escHtml(truncate(r.purpose, reqFullMode ? 25 : 7))}</span>
@@ -1764,7 +1816,7 @@ async function seedInitialStaffIfEmpty() {
 //  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
 //  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
 // ============================================================
-const APP_VERSION = '1.13.3';
+const APP_VERSION = '1.13.4';
 (function showVersionBadge() {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = `Ver.${APP_VERSION}`;
