@@ -184,6 +184,7 @@
   .rtd-purpose{ flex: 0 0 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rtd-staff  { flex: 0 0 26%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .staff-pending { color: var(--yellow); font-size: 0.78rem; border: 1px solid var(--yellow); border-radius: 10px; padding: 1px 8px; }
+  .req-row.done .rtd-client, .req-row.done .rtd-purpose, .req-row.done .rtd-staff { color: var(--text-dim); }
 
   /* PC横画面：文字が小さく感じるとのフィードバックを受けて、行の文字サイズ・行高を拡大。
      informationはrequestと同じ高さで間延びしていたため、内容量(4行程度)に合わせて縮める */
@@ -1058,13 +1059,14 @@ function renderSignage() {
 
   // request
   const today = todayStr();
-  const requests = loadRequest().filter(r => isRequestVisible(r, today));
+  const requests = loadRequest().filter(r => isRequestVisible(r, today))
+    .sort((a, b) => (a.staff ? 1 : 0) - (b.staff ? 1 : 0));
   const reqList = document.getElementById('req-list');
   const reqFullMode = !isPortraitMode();
   reqList.innerHTML = requests.length === 0
     ? '<div class="empty-state">登録なし</div>'
     : requests.map(r => `
-      <div class="req-row">
+      <div class="req-row${r.staff ? ' done' : ''}">
         <span class="rtd-client">${escHtml(truncate(r.client, reqFullMode ? 14 : 8))}</span>
         <span class="rtd-time"><span class="rtd-time-date">${escHtml(formatMonthDay(r.dateStr || today))}</span><span class="rtd-time-clock">${escHtml(r.time)}</span></span>
         <span class="rtd-purpose">${escHtml(truncate(r.purpose, reqFullMode ? 25 : 7))}</span>
@@ -1762,7 +1764,7 @@ async function seedInitialStaffIfEmpty() {
 //  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
 //  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
 // ============================================================
-const APP_VERSION = '1.13.2';
+const APP_VERSION = '1.13.3';
 (function showVersionBadge() {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = `Ver.${APP_VERSION}`;
