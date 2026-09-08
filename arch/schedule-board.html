@@ -179,7 +179,8 @@
 
   .req-row { display: flex; align-items: center; font-size: 0.9rem; padding: 4px 0; }
   .rtd-client { flex: 0 0 28%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .rtd-time   { flex: 0 0 16%; text-align: center; font-family: var(--font-mono); color: var(--accent); font-weight: 700; }
+  .rtd-time   { flex: 0 0 16%; text-align: center; font-family: var(--font-mono); color: var(--accent); font-weight: 700; display: flex; flex-direction: column; align-items: center; line-height: 1.2; }
+  .rtd-time-date { font-size: 0.68em; font-weight: 500; opacity: 0.85; }
   .rtd-purpose{ flex: 0 0 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rtd-staff  { flex: 0 0 26%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .staff-pending { color: var(--yellow); font-size: 0.78rem; border: 1px solid var(--yellow); border-radius: 10px; padding: 1px 8px; }
@@ -197,10 +198,10 @@
     .td-return { font-size: 2.24rem; }
     .info-row { font-size: 1.87rem; line-height: 1.35; padding: 4px 0; }
     .req-row { font-size: 1.87rem; padding: 5px 0; }
-    .rth-client, .rtd-client { flex-basis: 23%; }
-    .rth-time, .rtd-time { flex-basis: 9%; }
-    .rth-purpose, .rtd-purpose { flex-basis: 40%; }
-    .rth-staff, .rtd-staff { flex-basis: 28%; }
+    .rth-client, .rtd-client { flex-basis: 22%; }
+    .rth-time, .rtd-time { flex-basis: 15%; padding-right: 16px; box-sizing: border-box; }
+    .rth-purpose, .rtd-purpose { flex-basis: 41%; }
+    .rth-staff, .rtd-staff { flex-basis: 22%; text-align: right; }
     #info-panel { max-height: 240px; }
   }
 
@@ -752,6 +753,11 @@ function formatDateShort(dateStr) {
   const d = new Date(p[0], p[1]-1, p[2]);
   return `${p[1]}/${p[2]}(${DAYS[d.getDay()]})`;
 }
+// dateStrを「9/7」のような月日のみの短い表示用ラベルに変換（年・曜日なし）
+function formatMonthDay(dateStr) {
+  const p = dateStr.split('-').map(Number);
+  return `${p[1]}/${p[2]}`;
+}
 function isPortraitMode() {
   return !(window.innerWidth >= 768 || window.innerWidth > window.innerHeight);
 }
@@ -1060,7 +1066,7 @@ function renderSignage() {
     : requests.map(r => `
       <div class="req-row">
         <span class="rtd-client">${escHtml(truncate(r.client, reqFullMode ? 14 : 8))}</span>
-        <span class="rtd-time">${escHtml(r.time)}</span>
+        <span class="rtd-time"><span class="rtd-time-date">${escHtml(formatMonthDay(r.dateStr || today))}</span><span class="rtd-time-clock">${escHtml(r.time)}</span></span>
         <span class="rtd-purpose">${escHtml(truncate(r.purpose, reqFullMode ? 20 : 7))}</span>
         <span class="rtd-staff">${r.staff ? escHtml(truncate(r.staff, reqFullMode ? 10 : 4)) : '<span class="staff-pending">未定</span>'}</span>
       </div>`).join('');
@@ -1756,7 +1762,7 @@ async function seedInitialStaffIfEmpty() {
 //  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
 //  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
 // ============================================================
-const APP_VERSION = '1.13.0';
+const APP_VERSION = '1.13.1';
 (function showVersionBadge() {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = `Ver.${APP_VERSION}`;
