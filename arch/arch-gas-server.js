@@ -19,6 +19,9 @@ function doGet(e) {
   try {
     if (!checkToken(e.parameter.token)) return jsonResponse({ error: 'unauthorized' });
     if (e.parameter.action === 'get') return jsonResponse(getAllData());
+    // ダッシュボードの「今すぐ送信」リンクから開けるよう、GET経由でも呼べるようにしておく
+    // （リンクを新しいタブで開くだけなので、fetch()のCORS制約を気にしなくて済む）
+    if (e.parameter.action === 'sendMonthlyReportsNow') return jsonResponse(sendMonthlyReports());
   } catch(err) {
     return jsonResponse({ error: err.message });
   }
