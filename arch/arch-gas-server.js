@@ -50,6 +50,13 @@ function doPost(e) {
 
     if (action === 'migrateAddVersionColumn') return jsonResponse(migrateAddVersionColumn());
 
+    // 分析レポートのテスト送信用（本運用の週次/月次自動送信は別途トリガー設定）
+    if (action === 'sendTestReport') return jsonResponse(sendReportEmail(body.to, body.days || 7));
+    // 月次レポート（月間＋通算の2通）を今すぐ手動で送る（動作確認用。本番は毎月1日にトリガーで自動実行）
+    if (action === 'sendMonthlyReportsNow') return jsonResponse(sendMonthlyReports());
+    // setupMonthlyTriggerで登録したトリガーが実在するか確認する（読み取り専用）
+    if (action === 'listTriggers') return jsonResponse(listReportTriggers());
+
     return jsonResponse({ error: 'unknown action' });
   } catch(err) {
     return jsonResponse({ error: err.message });
@@ -224,6 +231,260 @@ function migrateAddVersionColumn() {
     cell.setNumberFormat('@');
     cell.setValue('appVersion');
   });
+  return { ok: true };
+}
+
+// ============================================================
+//  活動レポート（週次/月次で経営層向けに送るための集計＋メール送信）
+//  2026年9月、実績が溜まってきたことを受けてプロトタイプとして追加。
+//  行先欄は自由入力で1回の外出で複数箇所を回ることがあるため、
+//  「、」「，」「・」「→」「全角/半角スペース」で区切って個別の行先として
+//  分割集計する。ただし「休み」等の非行先ワードや日付の断片は除外する。
+// ============================================================
+const REPORT_EXCLUDE_WORDS = ['休み','帰宅','直行','在席','外出中','テレワーク','同行','会議室','リハ','リハーサル'];
+
+function splitDestForReport(dest) {
+  if (!dest) return [];
+  return dest.split(/[、，・→\s]+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .filter(w => !/^\d{1,2}\/\d{1,2}$/.test(w)) // "9/7" のような日付断片を除外
+    .filter(w => !REPORT_EXCLUDE_WORDS.some(ex => w.indexOf(ex) !== -1));
+}
+
+function parseDateStrToDate(s) {
+  const [y, m, d] = String(s).split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+// 集計本体（日付範囲指定版）。fromDate/toDateは両端を含む。
+// pendingScope: 'range' なら入電がこの期間内のもの、'all' なら全期間の未対応を対象にする
+function buildReportDataForRange(fromDate, toDate, pendingScope) {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const schedules = getSheetData(ss, SHEET_SCHEDULE);
+  const requests  = getSheetData(ss, SHEET_REQUEST);
+
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  const targetSchedules = schedules.filter(s => {
+    if (!s.dateStr) return false;
+    const dt = parseDateStrToDate(s.dateStr);
+    return dt >= fromDate && dt <= toDate;
+  });
+
+  // 人別集計：件数・合計外出時間（時刻指定ありの分のみ集計）
+  const byPerson = {};
+  targetSchedules.forEach(s => {
+    if (!byPerson[s.name]) byPerson[s.name] = { count: 0, totalMin: 0, timedCount: 0 };
+    byPerson[s.name].count++;
+    if (/^\d{2}:\d{2}$/.test(s.start) && /^\d{2}:\d{2}$/.test(s.return)) {
+      const [sh, sm] = s.start.split(':').map(Number);
+      const [rh, rm] = s.return.split(':').map(Number);
+      const dur = (rh * 60 + rm) - (sh * 60 + sm);
+      if (dur > 0) { byPerson[s.name].totalMin += dur; byPerson[s.name].timedCount++; }
+    }
+  });
+  const personRows = Object.keys(byPerson).map(name => {
+    const p = byPerson[name];
+    return {
+      name, count: p.count,
+      avgMin: p.timedCount ? Math.round(p.totalMin / p.timedCount) : null,
+      totalMin: p.totalMin,
+    };
+  }).sort((a, b) => b.count - a.count);
+
+  // 行先別集計（分割済み）
+  const byDest = {};
+  targetSchedules.forEach(s => {
+    splitDestForReport(s.dest).forEach(d => { byDest[d] = (byDest[d] || 0) + 1; });
+  });
+  const destRows = Object.entries(byDest).map(([dest, count]) => ({ dest, count }))
+    .sort((a, b) => b.count - a.count).slice(0, 15);
+
+  // 曜日別件数
+  const DOW = ['日','月','火','水','木','金','土'];
+  const byDow = [0,0,0,0,0,0,0];
+  targetSchedules.forEach(s => { byDow[parseDateStrToDate(s.dateStr).getDay()]++; });
+
+  // ご依頼：未対応（担当者未定）一覧。滞留日数も併記
+  // pendingScope='range'なら対象期間に入電したもの限定、'all'なら全期間の未対応をすべて出す
+  const pendingRequests = requests.filter(r => {
+      if (r.staff) return false;
+      if (pendingScope !== 'range') return true;
+      if (!r.dateStr) return false;
+      const dt = parseDateStrToDate(r.dateStr);
+      return dt >= fromDate && dt <= toDate;
+    })
+    .map(r => {
+      const dt = r.dateStr ? parseDateStrToDate(r.dateStr) : null;
+      const daysAgo = dt ? Math.round((today - dt) / 86400000) : null;
+      return { client: r.client, time: r.time, purpose: r.purpose, dateStr: r.dateStr, daysAgo };
+    })
+    .sort((a, b) => (b.daysAgo || 0) - (a.daysAgo || 0));
+
+  const fmtDate = (d) => `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+  return {
+    fromStr: fmtDate(fromDate), toStr: fmtDate(toDate),
+    totalCount: targetSchedules.length,
+    personRows, destRows, byDow, DOW, pendingRequests,
+  };
+}
+
+// 直近n日版（テスト送信用に残す）
+function buildReportData(days) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const cutoff = new Date(today.getTime() - (days - 1) * 86400000);
+  return buildReportDataForRange(cutoff, today, 'all');
+}
+
+// 指定した年月（1〜12）の月間レポート用データ
+function buildMonthlyReportData(year, month) {
+  const from = new Date(year, month - 1, 1);
+  const to = new Date(year, month, 0); // 月末日
+  return buildReportDataForRange(from, to, 'range');
+}
+
+// 運用開始日〜今日までの通算レポート用データ
+function buildAllTimeReportData() {
+  const from = new Date(2026, 7, 18); // 2026-08-18 本番運用開始日
+  const today = new Date(); today.setHours(0,0,0,0);
+  return buildReportDataForRange(from, today, 'all');
+}
+
+function buildReportHtml(data, title, pendingSectionLabel) {
+  title = title || '行動予定表 活動レポート';
+  pendingSectionLabel = pendingSectionLabel || '■ ご依頼：未対応の滞留状況';
+  const esc = (s) => String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const th = 'style="text-align:left;padding:6px 10px;border-bottom:2px solid #333;font-size:13px;color:#666;"';
+  const td = 'style="padding:6px 10px;border-bottom:1px solid #eee;font-size:14px;"';
+  const tdR = 'style="padding:6px 10px;border-bottom:1px solid #eee;font-size:14px;text-align:right;"';
+
+  const personTable = data.personRows.map(p => `
+    <tr>
+      <td ${td}>${esc(p.name)}</td>
+      <td ${tdR}>${p.count}件</td>
+      <td ${tdR}>${p.avgMin != null ? p.avgMin + '分' : '－'}</td>
+    </tr>`).join('');
+
+  const destTable = data.destRows.map(d => `
+    <tr><td ${td}>${esc(d.dest)}</td><td ${tdR}>${d.count}件</td></tr>`).join('');
+
+  const dowTable = data.DOW.map((dow, i) => `
+    <tr><td ${td}>${dow}曜日</td><td ${tdR}>${data.byDow[i]}件</td></tr>`).join('');
+
+  const pendingTable = data.pendingRequests.length === 0
+    ? `<p style="font-size:14px;color:#666;">未対応のご依頼はありません。</p>`
+    : `<table style="border-collapse:collapse;width:100%;margin-bottom:8px;">
+        <tr><th ${th}>クライアント</th><th ${th}>要件</th><th ${th}>入電日</th><th ${th}>経過日数</th></tr>
+        ${data.pendingRequests.map(r => `
+          <tr>
+            <td ${td}>${esc(r.client)}</td>
+            <td ${td}>${esc(r.purpose)}</td>
+            <td ${td}>${esc(r.dateStr)}</td>
+            <td ${tdR} ${r.daysAgo >= 3 ? 'color:#c00;font-weight:bold;' : ''}>${r.daysAgo != null ? r.daysAgo + '日' : '－'}</td>
+          </tr>`).join('')}
+      </table>`;
+
+  const spanDays = Math.round((new Date(data.toStr) - new Date(data.fromStr)) / 86400000) + 1;
+  const dowCaveat = spanDays < 90
+    ? `<p style="color:#999;font-size:12px;">※期間が短いため、曜日別の傾向はまだ参考値としてご覧ください。</p>`
+    : '';
+
+  return `
+  <div style="font-family:'Hiragino Sans','Noto Sans JP',sans-serif;color:#222;max-width:640px;">
+    <h2 style="margin-bottom:4px;">${esc(title)}</h2>
+    <p style="color:#666;font-size:13px;margin-top:0;">対象期間：${data.fromStr} 〜 ${data.toStr}／行動予定 合計${data.totalCount}件</p>
+
+    <h3 style="margin-bottom:6px;">${esc(pendingSectionLabel)}</h3>
+    ${pendingTable}
+
+    <h3 style="margin-bottom:6px;margin-top:20px;">■ 人別 外出件数・平均外出時間</h3>
+    <table style="border-collapse:collapse;width:100%;margin-bottom:8px;">
+      <tr><th ${th}>氏名</th><th ${th} style="text-align:right;">外出件数</th><th ${th} style="text-align:right;">平均外出時間</th></tr>
+      ${personTable}
+    </table>
+
+    <h3 style="margin-bottom:6px;margin-top:20px;">■ 行先別 頻度（上位15件・複数訪問先は分割集計）</h3>
+    <table style="border-collapse:collapse;width:100%;margin-bottom:8px;">
+      <tr><th ${th}>行先</th><th ${th} style="text-align:right;">件数</th></tr>
+      ${destTable}
+    </table>
+
+    <h3 style="margin-bottom:6px;margin-top:20px;">■ 曜日別 外出件数（参考値）</h3>
+    <table style="border-collapse:collapse;width:100%;margin-bottom:8px;">
+      ${dowTable}
+    </table>
+    ${dowCaveat}
+
+    <p style="color:#999;font-size:11px;margin-top:24px;">このメールはConnectSuite 行動予定表システムから自動生成されました。</p>
+  </div>`;
+}
+
+// 初回のみ：メール送信権限を承認するための手動実行用関数。
+// スクリプトエディタでこの関数を選んで「実行」ボタンを押すと、Googleの権限確認画面が
+// 出るので承認する。承認後、自分宛てに確認メールが届けば以後は自動送信も動くようになる。
+function authorizeMailPermission() {
+  const me = Session.getActiveUser().getEmail();
+  MailApp.sendEmail(me, '【権限確認】行動予定表レポート機能', 'このメールが届いていれば、メール送信の権限承認は完了です。');
+}
+
+function sendReportEmail(toAddress, days) {
+  const data = buildReportData(days || 7);
+  const html = buildReportHtml(data);
+  MailApp.sendEmail({
+    to: toAddress,
+    subject: `【テスト】行動予定表 活動レポート（直近${days || 7}日）`,
+    htmlBody: html,
+  });
+  return { ok: true, totalCount: data.totalCount };
+}
+
+// 月次レポートの送付先。今はまこと様のみ、今後増やす場合はここにカンマ区切りで追加する
+const REPORT_RECIPIENTS = ['makoto@aoki-prt.co.jp'];
+
+// 「月間レポート」（先月分）と「通算レポート」（運用開始日〜今日）の2通を送る。
+// 毎月1日にトリガーで自動実行する想定（setupMonthlyTriggerで設定）。
+function sendMonthlyReports() {
+  const now = new Date();
+  // 実行日の前月を対象にする（1日に実行される想定なので、前月が「先月分」になる）
+  const targetMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const y = targetMonthDate.getFullYear(), m = targetMonthDate.getMonth() + 1;
+
+  const monthlyData = buildMonthlyReportData(y, m);
+  const monthlyHtml = buildReportHtml(monthlyData, `月間レポート ${y}年${m}月分`, `■ ご依頼：${m}月受付分で未対応のもの`);
+
+  const allTimeData = buildAllTimeReportData();
+  const allTimeHtml = buildReportHtml(allTimeData, '通算レポート', '■ ご依頼：現時点で未対応のもの（全期間）');
+
+  const to = REPORT_RECIPIENTS.join(',');
+  MailApp.sendEmail({ to, subject: `月間レポート ${y}年${m}月分`, htmlBody: monthlyHtml });
+  MailApp.sendEmail({ to, subject: `通算レポート（${allTimeData.fromStr} 〜 ${allTimeData.toStr}）`, htmlBody: allTimeHtml });
+  return { ok: true, month: `${y}-${m}`, monthlyCount: monthlyData.totalCount, allTimeCount: allTimeData.totalCount };
+}
+
+// 初回のみ：「毎月1日 朝9時」にsendMonthlyReportsを自動実行するトリガーを設定する。
+// スクリプトエディタでこの関数を選んで「実行」すると、日付ベーストリガーの権限確認が出るので承認する。
+// 既に同名のトリガーがある場合は一旦削除してから作り直す（重複登録防止）。
+function listReportTriggers() {
+  const triggers = ScriptApp.getProjectTriggers()
+    .filter(t => t.getHandlerFunction() === 'sendMonthlyReports')
+    .map(t => ({
+      handlerFunction: t.getHandlerFunction(),
+      eventType: String(t.getEventType()),
+    }));
+  return { ok: true, count: triggers.length, triggers };
+}
+
+function setupMonthlyTrigger() {
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (t.getHandlerFunction() === 'sendMonthlyReports') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('sendMonthlyReports')
+    .timeBased()
+    .onMonthDay(1)
+    .atHour(9)
+    .create();
   return { ok: true };
 }
 
