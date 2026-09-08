@@ -275,11 +275,22 @@ function buildReportDataForRange(fromDate, toDate, pendingScope) {
     return dt >= fromDate && dt <= toDate;
   });
 
-  // 人別集計：件数・合計外出時間（時刻指定ありの分のみ集計）
+  // 人別集計：件数・合計外出時間（時刻指定ありの分のみ集計）／行動分類の内訳
+  const CATEGORY_ORDER = ['外出','終日外出','直帰','在席','テレワーク'];
+  function classifySchedule(s) {
+    if (s.dest === '在席') return '在席';
+    if (s.dest === 'テレワーク') return 'テレワーク';
+    if (s.return === '直帰') return '直帰';
+    if (s.return === '終日') return '終日外出';
+    return '外出';
+  }
   const byPerson = {};
   targetSchedules.forEach(s => {
-    if (!byPerson[s.name]) byPerson[s.name] = { count: 0, totalMin: 0, timedCount: 0 };
+    if (!byPerson[s.name]) {
+      byPerson[s.name] = { count: 0, totalMin: 0, timedCount: 0, categories: {外出:0,終日外出:0,直帰:0,在席:0,テレワーク:0} };
+    }
     byPerson[s.name].count++;
+    byPerson[s.name].categories[classifySchedule(s)]++;
     if (/^\d{2}:\d{2}$/.test(s.start) && /^\d{2}:\d{2}$/.test(s.return)) {
       const [sh, sm] = s.start.split(':').map(Number);
       const [rh, rm] = s.return.split(':').map(Number);
@@ -293,6 +304,7 @@ function buildReportDataForRange(fromDate, toDate, pendingScope) {
       name, count: p.count,
       avgMin: p.timedCount ? Math.round(p.totalMin / p.timedCount) : null,
       totalMin: p.totalMin,
+      categories: p.categories,
     };
   }).sort((a, b) => b.count - a.count);
 
@@ -325,11 +337,31 @@ function buildReportDataForRange(fromDate, toDate, pendingScope) {
     })
     .sort((a, b) => (b.daysAgo || 0) - (a.daysAgo || 0));
 
+  // ご依頼：対象期間に入電した分のクライアント別・担当者別グラフ用集計
+  const targetRequests = requests.filter(r => {
+    if (!r.dateStr) return false;
+    const dt = parseDateStrToDate(r.dateStr);
+    return dt >= fromDate && dt <= toDate;
+  });
+  const byClient = {};
+  targetRequests.forEach(r => { byClient[r.client] = (byClient[r.client] || 0) + 1; });
+  const clientRows = Object.entries(byClient).map(([client, count]) => ({ client, count }))
+    .sort((a, b) => b.count - a.count).slice(0, 8);
+
+  const byReqStaff = {};
+  targetRequests.forEach(r => {
+    const key = r.staff || '未対応';
+    byReqStaff[key] = (byReqStaff[key] || 0) + 1;
+  });
+  const reqStaffRows = Object.entries(byReqStaff).map(([staff, count]) => ({ staff, count }))
+    .sort((a, b) => b.count - a.count);
+
   const fmtDate = (d) => `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
   return {
     fromStr: fmtDate(fromDate), toStr: fmtDate(toDate),
     totalCount: targetSchedules.length,
     personRows, destRows, byDow, DOW, pendingRequests,
+    clientRows, reqStaffRows, requestTotalCount: targetRequests.length,
   };
 }
 
@@ -354,9 +386,79 @@ function buildAllTimeReportData() {
   return buildReportDataForRange(from, today, 'all');
 }
 
-function buildReportHtml(data, title, pendingSectionLabel) {
+// ============================================================
+//  グラフ画像生成（GAS標準のChartsサービス。Python等の外部依存なしで完結する）
+// ============================================================
+const CATEGORY_COLORS = ['#ff7b1a','#ffb27a','#e05e00','#6b7a99','#8ec6ff']; // 外出/終日外出/直帰/在席/テレワーク
+
+function buildPersonPieChartBlob(name, categories) {
+  const order = ['外出','終日外出','直帰','在席','テレワーク'];
+  const dt = Charts.newDataTable()
+    .addColumn(Charts.ColumnType.STRING, 'category')
+    .addColumn(Charts.ColumnType.NUMBER, 'count');
+  let hasData = false;
+  order.forEach(cat => { if (categories[cat] > 0) { dt.addRow([cat, categories[cat]]); hasData = true; } });
+  if (!hasData) return null;
+  const chart = Charts.newPieChart()
+    .setDataTable(dt.build())
+    .setTitle(name)
+    .setDimensions(320, 240)
+    .setColors(CATEGORY_COLORS)
+    .setLegendPosition(Charts.Position.RIGHT)
+    .build();
+  return chart.getBlob();
+}
+
+function buildBarChartBlob(title, rows, labelKey, valueKey, color) {
+  if (!rows.length) return null;
+  const dt = Charts.newDataTable()
+    .addColumn(Charts.ColumnType.STRING, 'label')
+    .addColumn(Charts.ColumnType.NUMBER, 'value');
+  rows.forEach(r => dt.addRow([String(r[labelKey]), r[valueKey]]));
+  const chart = Charts.newBarChart()
+    .setDataTable(dt.build())
+    .setTitle(title)
+    .setDimensions(460, 50 + rows.length * 32)
+    .setColors([color])
+    .build();
+  return chart.getBlob();
+}
+
+// data から個人別円グラフ・ご依頼棒グラフの画像を生成し、
+// { html: 埋め込み用<img>タグのHTML, inlineImages: {cid: blob} } を返す
+function buildReportCharts(data) {
+  const inlineImages = {};
+  let idx = 0;
+
+  const pieImgs = data.personRows.map(p => {
+    const blob = buildPersonPieChartBlob(p.name, p.categories);
+    if (!blob) return '';
+    const cid = `pie${idx++}`;
+    inlineImages[cid] = blob;
+    return `<img src="cid:${cid}" width="320" height="240" style="display:inline-block;margin:4px;">`;
+  }).join('');
+
+  let clientBarHtml = '', staffBarHtml = '';
+  const clientBlob = buildBarChartBlob('クライアント別 ご依頼件数', data.clientRows, 'client', 'count', '#ff7b1a');
+  if (clientBlob) {
+    const cid = `barClient${idx++}`;
+    inlineImages[cid] = clientBlob;
+    clientBarHtml = `<img src="cid:${cid}" style="display:block;margin-bottom:16px;">`;
+  }
+  const staffBlob = buildBarChartBlob('担当者別 ご依頼対応件数', data.reqStaffRows, 'staff', 'count', '#4a86e8');
+  if (staffBlob) {
+    const cid = `barStaff${idx++}`;
+    inlineImages[cid] = staffBlob;
+    staffBarHtml = `<img src="cid:${cid}" style="display:block;">`;
+  }
+
+  return { pieImgs, clientBarHtml, staffBarHtml, inlineImages };
+}
+
+function buildReportHtml(data, title, pendingSectionLabel, charts) {
   title = title || '行動予定表 活動レポート';
   pendingSectionLabel = pendingSectionLabel || '■ ご依頼：未対応の滞留状況';
+  charts = charts || { pieImgs: '', clientBarHtml: '', staffBarHtml: '' };
   const esc = (s) => String(s == null ? '' : s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const th = 'style="text-align:left;padding:6px 10px;border-bottom:2px solid #333;font-size:13px;color:#666;"';
@@ -399,7 +501,19 @@ function buildReportHtml(data, title, pendingSectionLabel) {
     <h2 style="margin-bottom:4px;">${esc(title)}</h2>
     <p style="color:#666;font-size:13px;margin-top:0;">対象期間：${data.fromStr} 〜 ${data.toStr}／行動予定 合計${data.totalCount}件</p>
 
-    <h3 style="margin-bottom:6px;">${esc(pendingSectionLabel)}</h3>
+    ${charts.pieImgs ? `
+    <h3 style="margin-bottom:6px;">■ 個人別 行動傾向</h3>
+    <p style="color:#666;font-size:13px;margin-top:0;">各スタッフの行動予定を「外出」「終日外出」「直帰」「在席」「テレワーク」に分類した内訳です。</p>
+    <div>${charts.pieImgs}</div>
+    ` : ''}
+
+    ${(charts.clientBarHtml || charts.staffBarHtml) ? `
+    <h3 style="margin-bottom:6px;margin-top:20px;">■ ご依頼の内訳（対象期間の受付${data.requestTotalCount || 0}件）</h3>
+    ${charts.clientBarHtml}
+    ${charts.staffBarHtml}
+    ` : ''}
+
+    <h3 style="margin-bottom:6px;margin-top:20px;">${esc(pendingSectionLabel)}</h3>
     ${pendingTable}
 
     <h3 style="margin-bottom:6px;margin-top:20px;">■ 人別 外出件数・平均外出時間</h3>
@@ -434,11 +548,13 @@ function authorizeMailPermission() {
 
 function sendReportEmail(toAddress, days) {
   const data = buildReportData(days || 7);
-  const html = buildReportHtml(data);
+  const charts = buildReportCharts(data);
+  const html = buildReportHtml(data, null, null, charts);
   MailApp.sendEmail({
     to: toAddress,
     subject: `【テスト】行動予定表 活動レポート（直近${days || 7}日）`,
     htmlBody: html,
+    inlineImages: charts.inlineImages,
   });
   return { ok: true, totalCount: data.totalCount };
 }
@@ -455,14 +571,16 @@ function sendMonthlyReports() {
   const y = targetMonthDate.getFullYear(), m = targetMonthDate.getMonth() + 1;
 
   const monthlyData = buildMonthlyReportData(y, m);
-  const monthlyHtml = buildReportHtml(monthlyData, `月間レポート ${y}年${m}月分`, `■ ご依頼：${m}月受付分で未対応のもの`);
+  const monthlyCharts = buildReportCharts(monthlyData);
+  const monthlyHtml = buildReportHtml(monthlyData, `月間レポート ${y}年${m}月分`, `■ ご依頼：${m}月受付分で未対応のもの`, monthlyCharts);
 
   const allTimeData = buildAllTimeReportData();
-  const allTimeHtml = buildReportHtml(allTimeData, '通算レポート', '■ ご依頼：現時点で未対応のもの（全期間）');
+  const allTimeCharts = buildReportCharts(allTimeData);
+  const allTimeHtml = buildReportHtml(allTimeData, '通算レポート', '■ ご依頼：現時点で未対応のもの（全期間）', allTimeCharts);
 
   const to = REPORT_RECIPIENTS.join(',');
-  MailApp.sendEmail({ to, subject: `月間レポート ${y}年${m}月分`, htmlBody: monthlyHtml });
-  MailApp.sendEmail({ to, subject: `通算レポート（${allTimeData.fromStr} 〜 ${allTimeData.toStr}）`, htmlBody: allTimeHtml });
+  MailApp.sendEmail({ to, subject: `月間レポート ${y}年${m}月分`, htmlBody: monthlyHtml, inlineImages: monthlyCharts.inlineImages });
+  MailApp.sendEmail({ to, subject: `通算レポート（${allTimeData.fromStr} 〜 ${allTimeData.toStr}）`, htmlBody: allTimeHtml, inlineImages: allTimeCharts.inlineImages });
   return { ok: true, month: `${y}-${m}`, monthlyCount: monthlyData.totalCount, allTimeCount: allTimeData.totalCount };
 }
 
