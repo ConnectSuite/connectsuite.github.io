@@ -39,7 +39,7 @@ function doPost(e) {
 
     if (action === 'addRequest')     return jsonResponse(addRequest(body.entry));
     if (action === 'editRequest')    return jsonResponse(editRow(SHEET_REQUEST, body.id, body.patch));
-    if (action === 'assignStaff')    return jsonResponse(editRow(SHEET_REQUEST, body.id, { staff: body.staff, appVersion: body.appVersion }));
+    if (action === 'assignStaff')    return jsonResponse(editRow(SHEET_REQUEST, body.id, { staff: body.staff, updatedAt: body.updatedAt, appVersion: body.appVersion }));
     if (action === 'deleteRequest')  return jsonResponse(deleteRow(SHEET_REQUEST,  body.id));
 
     if (action === 'addInfo')        return jsonResponse(addInfo(body.entry));
