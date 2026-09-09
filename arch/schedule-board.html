@@ -81,25 +81,19 @@
   /* ===== メインコンテンツエリア ===== */
   .signage-main { display: flex; flex-direction: column; flex: 1; gap: 8px; min-height: 0; }
   .board-grid { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; overflow-y: auto; }
+  .board-col { display: flex; flex-direction: column; gap: 8px; }
 
-  /* PC/タブレット：2Fの人数が多く縦が窮屈だったため、2Fは全高を使い、
-     1F→request→informationを右側に縦積みする構成に変更（2026-08-31、2026-09-08に並び順・高さ配分を変更） */
+  /* PC/タブレット：2Fの人数が多く縦が窮屈だったため、2Fは全高を使い、右側に
+     request→informationを縦積みする構成に変更（2026-08-31、2026-09-08に並び順変更、
+     2026-09-09にお客様要望で1Fを左カラムへ・request:information=2:1に再構成） */
   @media (orientation: landscape), (min-width: 768px) {
-    .board-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      grid-template-rows: 1fr 1fr 1fr;
-      grid-template-areas:
-        "col2f col1f"
-        "col2f req"
-        "col2f info";
-      gap: 16px;
-      overflow: hidden;
-    }
-    #col-2f { grid-area: col2f; }
-    #col-1f { grid-area: col1f; }
-    #info-panel { grid-area: info; }
-    #req-panel { grid-area: req; }
+    .board-grid { display: flex; flex-direction: row; gap: 16px; overflow: hidden; }
+    .board-col { flex: 1; gap: 16px; min-height: 0; }
+    /* 1Fは4行表示できれば十分なので固定高、残りは2Fに回す */
+    #col-2f { flex: 1 1 0; min-height: 0; }
+    #col-1f { flex: 0 0 300px; }
+    #req-panel { flex: 2 1 0; min-height: 0; }
+    #info-panel { flex: 1 1 0; min-height: 0; }
   }
 
   /* 4Kサイネージ（50インチ・3840x2160想定）：同じ50インチ画面で解像度が
@@ -320,6 +314,20 @@
   .icon-btn.active-edit { border-color: var(--accent); color: var(--accent); }
   .icon-btn.del:hover { border-color: var(--red); color: var(--red); }
 
+  /* ご依頼一覧：誤操作で削除してしまう事故が起きたため、編集・削除ボタンを
+     大きくして担当者操作エリアの右側にまとめて配置（2026-09-09） */
+  .icon-btn-lg {
+    background: none; border: 1px solid var(--text); color: var(--text);
+    width: 40px; height: 40px; border-radius: 8px; cursor: pointer; font-size: 1.2rem;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .icon-btn-lg:hover { border-color: var(--accent); color: var(--accent); }
+  .icon-btn-lg.active-edit { border-color: var(--accent); color: var(--accent); }
+  /* 削除は取り返しがつかない操作のため、ホバー待ちでなく常時赤で目立たせる。
+     絵文字の🗑️は同じfont-sizeでも鉛筆の✎より大きく見えるため、少し縮小して揃える（2026-09-09） */
+  .icon-btn-lg.del { border-color: var(--red); color: var(--red); font-size: 1rem; }
+  .icon-btn-lg.del:hover { background: rgba(224,64,64,0.12); }
+
   .editing-banner {
     display: flex; align-items: center; gap: 8px; background: rgba(255,123,26,0.1);
     border: 1px solid var(--accent); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px;
@@ -455,22 +463,26 @@
     <div class="nav-day-badge" id="nav-day-badge"></div>
 
     <div class="board-grid">
-    <div class="floor-col" id="col-2f"></div>
-    <div class="floor-col" id="col-1f"></div>
-
-    <div class="lower-panel" id="req-panel">
-      <div class="panel-label">request</div>
-      <div class="req-header">
-        <span class="rth-client">クライアント</span>
-        <span class="rth-time">入電</span>
-        <span class="rth-purpose">用件</span>
-        <span class="rth-staff">担当</span>
-      </div>
-      <div id="req-list"><div class="empty-state">登録なし</div></div>
+    <div class="board-col" id="left-col">
+      <div class="floor-col" id="col-2f"></div>
+      <div class="floor-col" id="col-1f"></div>
     </div>
-    <div class="lower-panel" id="info-panel">
-      <div class="panel-label">information</div>
-      <div id="info-list"><div class="empty-state">登録なし</div></div>
+
+    <div class="board-col" id="right-col">
+      <div class="lower-panel" id="req-panel">
+        <div class="panel-label">request</div>
+        <div class="req-header">
+          <span class="rth-client">クライアント</span>
+          <span class="rth-time">入電</span>
+          <span class="rth-purpose">用件</span>
+          <span class="rth-staff">担当</span>
+        </div>
+        <div id="req-list"><div class="empty-state">登録なし</div></div>
+      </div>
+      <div class="lower-panel" id="info-panel">
+        <div class="panel-label">information</div>
+        <div id="info-list"><div class="empty-state">登録なし</div></div>
+      </div>
     </div>
     </div>
   </div>
@@ -1466,6 +1478,11 @@ function renderReqEntries() {
 
   list.innerHTML = data.map(r => {
     const showAssignUI = !r.staff || reassigningId === r.id;
+    const actionBtns = `
+          <span style="display:flex;align-items:center;gap:8px;margin-left:auto;">
+            <button class="icon-btn-lg${editRequestId===r.id?' active-edit':''}" onclick="startEditRequest('${safeId(r.id)}')" title="編集" aria-label="編集">✎</button>
+            <button class="icon-btn-lg del" onclick="confirmDeleteRequest('${safeId(r.id)}')" title="削除" aria-label="削除">🗑️</button>
+          </span>`;
     const staffBlock = showAssignUI ? `
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px;">
           <span class="staff-pending">${r.staff ? '担当者を変更' : '担当者未定'}</span>
@@ -1474,12 +1491,14 @@ function renderReqEntries() {
             ${staffOptions}
           </select>
           ${r.staff ? `<button class="icon-btn" style="width:auto;padding:2px 8px;" onclick="cancelReassign()">キャンセル</button>` : ''}
+          ${actionBtns}
         </div>`
       : `
         <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
           <span style="font-size:0.8rem;color:var(--text-dim);">担当：</span>
           <span style="font-size:0.95rem;font-weight:700;">${escHtml(r.staff)}</span>
           <button class="icon-btn" style="width:auto;padding:2px 10px;font-size:0.72rem;" onclick="startReassign('${safeId(r.id)}')">変更</button>
+          ${actionBtns}
         </div>`;
 
     const reqIsToday = (r.dateStr || today) === today;
@@ -1490,11 +1509,7 @@ function renderReqEntries() {
             <span class="entry-date${reqIsToday?' entry-date-today':''}">${reqIsToday?'今日':formatDateShort(r.dateStr||today)}</span>
             ${escHtml(r.client)}
           </span>
-          <span style="display:flex;align-items:center;gap:8px;">
-            <span style="font-family:var(--font-mono);color:var(--accent);font-size:0.9rem;">入電 ${escHtml(r.time)}</span>
-            <button class="icon-btn${editRequestId===r.id?' active-edit':''}" onclick="startEditRequest('${safeId(r.id)}')">✎</button>
-            <button class="icon-btn del" onclick="deleteRequest('${safeId(r.id)}')">✕</button>
-          </span>
+          <span><span style="font-size:0.84rem;color:var(--text-dim);">入電</span> <span style="font-family:var(--font-mono);color:var(--accent);font-size:1.44rem;font-weight:700;">${escHtml(r.time)}</span></span>
         </div>
         <div style="font-size:0.88rem;color:var(--text-dim);margin-top:4px;">${escHtml(r.purpose)}</div>
         ${staffBlock}
@@ -1578,6 +1593,14 @@ function deleteRequest(id) {
   if (USE_GAS) gasPost({ action:'deleteRequest', id });
   if (editRequestId === id) cancelRequestEdit();
   renderReqEntries();
+}
+// 対応完了後の誤削除で履歴が消え、別担当者が二重訪問してしまう事故が発生したため、
+// 削除前に必ず確認する（2026-09-09）
+function confirmDeleteRequest(id) {
+  const r = loadRequest().find(x => x.id === id);
+  if (!r) return;
+  if (!confirm(`「${r.client}」のご依頼を削除しますか？\n削除すると一覧から消え、元に戻せません。`)) return;
+  deleteRequest(id);
 }
 </script>
 <script>
@@ -1816,7 +1839,7 @@ async function seedInitialStaffIfEmpty() {
 //  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
 //  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
 // ============================================================
-const APP_VERSION = '1.13.6';
+const APP_VERSION = '1.13.7';
 (function showVersionBadge() {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = `Ver.${APP_VERSION}`;
