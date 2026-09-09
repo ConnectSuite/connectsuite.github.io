@@ -314,20 +314,6 @@
   .icon-btn.active-edit { border-color: var(--accent); color: var(--accent); }
   .icon-btn.del:hover { border-color: var(--red); color: var(--red); }
 
-  /* ご依頼一覧：誤操作で削除してしまう事故が起きたため、編集・削除ボタンを
-     大きくして担当者操作エリアの右側にまとめて配置（2026-09-09） */
-  .icon-btn-lg {
-    background: none; border: 1px solid var(--text); color: var(--text);
-    width: 40px; height: 40px; border-radius: 8px; cursor: pointer; font-size: 1.2rem;
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  }
-  .icon-btn-lg:hover { border-color: var(--accent); color: var(--accent); }
-  .icon-btn-lg.active-edit { border-color: var(--accent); color: var(--accent); }
-  /* 削除は取り返しがつかない操作のため、ホバー待ちでなく常時赤で目立たせる。
-     絵文字の🗑️は同じfont-sizeでも鉛筆の✎より大きく見えるため、少し縮小して揃える（2026-09-09） */
-  .icon-btn-lg.del { border-color: var(--red); color: var(--red); font-size: 1rem; }
-  .icon-btn-lg.del:hover { background: rgba(224,64,64,0.12); }
-
   .editing-banner {
     display: flex; align-items: center; gap: 8px; background: rgba(255,123,26,0.1);
     border: 1px solid var(--accent); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px;
@@ -1480,8 +1466,8 @@ function renderReqEntries() {
     const showAssignUI = !r.staff || reassigningId === r.id;
     const actionBtns = `
           <span style="display:flex;align-items:center;gap:8px;margin-left:auto;">
-            <button class="icon-btn-lg${editRequestId===r.id?' active-edit':''}" onclick="startEditRequest('${safeId(r.id)}')" title="編集" aria-label="編集">✎</button>
-            <button class="icon-btn-lg del" onclick="confirmDeleteRequest('${safeId(r.id)}')" title="削除" aria-label="削除">🗑️</button>
+            <button class="icon-btn${editRequestId===r.id?' active-edit':''}" onclick="startEditRequest('${safeId(r.id)}')" title="編集" aria-label="編集">✎</button>
+            <button class="icon-btn del" onclick="confirmDeleteRequest('${safeId(r.id)}')" title="削除" aria-label="削除">🗑️</button>
           </span>`;
     const staffBlock = showAssignUI ? `
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px;">
@@ -1839,7 +1825,7 @@ async function seedInitialStaffIfEmpty() {
 //  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
 //  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
 // ============================================================
-const APP_VERSION = '1.13.7';
+const APP_VERSION = '1.13.8';
 (function showVersionBadge() {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = `Ver.${APP_VERSION}`;
