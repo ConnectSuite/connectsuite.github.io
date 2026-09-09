@@ -709,6 +709,9 @@ const NAV_RANGE        = 7;
 const PRESET_DESTS = ['在席','外出中','直行','会議室','テレワーク'];
 const DAYS = ['日','月','火','水','木','金','土'];
 const FLOOR_ORDER = { '2F': 0, '1F': 1 };
+// 絵文字の🗑️はOSが常にフルカラーで描画するためCSSのcolorが効かず、ホバー時に赤くならない。
+// currentColorで塗るSVGに置き換えて、他の削除ボタン（✕テキスト）と同じくホバー色が反映されるようにする（2026-09-09）
+const TRASH_ICON_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path></svg>';
 
 let viewDateStr   = null;
 let dayMode        = null;
@@ -1474,7 +1477,7 @@ function renderReqEntries() {
     const actionBtns = `
           <span style="display:flex;align-items:center;gap:8px;margin-left:auto;">
             <button class="icon-btn${editRequestId===r.id?' active-edit':''}" onclick="startEditRequest('${safeId(r.id)}')" title="編集" aria-label="編集">✎</button>
-            <button class="icon-btn del" onclick="confirmDeleteRequest('${safeId(r.id)}')" title="削除" aria-label="削除">🗑️</button>
+            <button class="icon-btn del" onclick="confirmDeleteRequest('${safeId(r.id)}')" title="削除" aria-label="削除">${TRASH_ICON_SVG}</button>
           </span>`;
     const staffBlock = showAssignUI ? `
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px;">
@@ -1847,7 +1850,7 @@ async function seedInitialStaffIfEmpty() {
 //  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
 //  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
 // ============================================================
-const APP_VERSION = '1.13.9';
+const APP_VERSION = '1.13.10';
 (function showVersionBadge() {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = `Ver.${APP_VERSION}`;
