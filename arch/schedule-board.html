@@ -1352,7 +1352,7 @@ function renderMyEntries() {
         <span class="entry-ret">${escHtml(r.return)}</span>
       </span>
       <button class="icon-btn${editScheduleId===r.id?' active-edit':''}" onclick="startEditSchedule('${safeId(r.id)}')">✎</button>
-      <button class="icon-btn del" onclick="deleteSchedule('${safeId(r.id)}')">✕</button>
+      <button class="icon-btn del" onclick="confirmDeleteSchedule('${safeId(r.id)}')">✕</button>
     </div>`;
   }).join('');
 }
@@ -1443,6 +1443,13 @@ function deleteSchedule(id) {
   if (USE_GAS) gasPost({ action:'deleteSchedule', id });
   if (editScheduleId === id) cancelScheduleEdit();
   renderMyEntries();
+}
+// ご依頼と同様、誤操作での削除事故を防ぐため削除前に確認する（2026-09-09）
+function confirmDeleteSchedule(id) {
+  const r = loadSchedule().find(x => x.id === id);
+  if (!r) return;
+  if (!confirm(`「${r.dest || '行き先未入力'}」の予定を削除しますか？\n削除すると一覧から消え、元に戻せません。`)) return;
+  deleteSchedule(id);
 }
 </script>
 <script>
@@ -1601,7 +1608,7 @@ function renderInfoEntries() {
     <div class="list-row${editInfoId===r.id?' editing':''}">
       <span class="entry-dest">${escHtml(r.text)}</span>
       <button class="icon-btn${editInfoId===r.id?' active-edit':''}" onclick="startEditInfo('${safeId(r.id)}')">✎</button>
-      <button class="icon-btn del" onclick="deleteInfo('${safeId(r.id)}')">✕</button>
+      <button class="icon-btn del" onclick="confirmDeleteInfo('${safeId(r.id)}')">✕</button>
     </div>`).join('');
 }
 
@@ -1655,6 +1662,13 @@ function deleteInfo(id) {
   if (editInfoId === id) cancelInfoEdit();
   renderInfoEntries();
 }
+// ご依頼と同様、誤操作での削除事故を防ぐため削除前に確認する（2026-09-09）
+function confirmDeleteInfo(id) {
+  const r = loadInfo().find(x => x.id === id);
+  if (!r) return;
+  if (!confirm(`このお知らせを削除しますか？\n「${r.text}」\n削除すると一覧から消え、元に戻せません。`)) return;
+  deleteInfo(id);
+}
 </script>
 <script>
 // ============================================================
@@ -1682,7 +1696,7 @@ function renderStaffEntries() {
         <span class="staff-order-badge">${escHtml(String(s.order))}</span>
         <span class="entry-dest">${escHtml(s.last)} ${escHtml(s.first||'')}</span>
         <button class="icon-btn${editStaffId===s.id?' active-edit':''}" onclick="startEditStaff('${safeId(s.id)}')">✎</button>
-        <button class="icon-btn del" onclick="deleteStaff('${safeId(s.id)}')">✕</button>
+        <button class="icon-btn del" onclick="confirmDeleteStaff('${safeId(s.id)}')">✕</button>
       </div>`).join('');
   });
   list.innerHTML = html;
@@ -1791,6 +1805,14 @@ function deleteStaff(id) {
   renderStaffEntries();
   renderSignage();
 }
+// ご依頼と同様、誤操作での削除事故を防ぐため削除前に確認する（2026-09-09）
+function confirmDeleteStaff(id) {
+  const s = loadStaff().find(x => x.id === id);
+  if (!s) return;
+  const name = `${s.last} ${s.first || ''}`.trim();
+  if (!confirm(`「${name}」を従業員一覧から削除しますか？\n削除すると元に戻せません。`)) return;
+  deleteStaff(id);
+}
 
 // ============================================================
 //  初期データ投入（初回のみ・従業員マスタが空の場合）
@@ -1825,7 +1847,7 @@ async function seedInitialStaffIfEmpty() {
 //  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
 //  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
 // ============================================================
-const APP_VERSION = '1.13.8';
+const APP_VERSION = '1.13.9';
 (function showVersionBadge() {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = `Ver.${APP_VERSION}`;
