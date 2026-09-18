@@ -1,7 +1,7 @@
 // ============================================================
 //  行動予定表（arch）GAS サーバー
 //  スプレッドシートのシート構成：
-//    「予定」「request」「information」「staff」
+//    「予定」「request」「information」「staff」「trivia」
 // ============================================================
 
 const SHEET_ID     = '1rsMvJKaKETBwW_3jSqtNkPPKCpdOIphbmDFiPT7Y0as';
@@ -11,6 +11,7 @@ const SHEET_SCHEDULE = '予定';
 const SHEET_REQUEST  = 'request';
 const SHEET_INFO     = 'information';
 const SHEET_STAFF    = 'staff';
+const SHEET_TRIVIA   = 'trivia';
 
 // ============================================================
 //  エントリポイント
@@ -53,6 +54,11 @@ function doPost(e) {
 
     if (action === 'migrateAddVersionColumn') return jsonResponse(migrateAddVersionColumn());
 
+    // 「本日の状況」画面のトリビア：表示したことを記録（約1ヶ月は同じネタを出さないための履歴）
+    if (action === 'markTriviaShown') return jsonResponse(editRow(SHEET_TRIVIA, body.id, { lastShownAt: body.lastShownAt }));
+    // トリビアのまとめ追加（週次のネタ追加運用で使用。1回の呼び出しで複数件まとめて追加できる）
+    if (action === 'addTriviaBatch') return jsonResponse(addTriviaBatch(body.items));
+
     // 分析レポートのテスト送信用（本運用の週次/月次自動送信は別途トリガー設定）
     if (action === 'sendTestReport') return jsonResponse(sendReportEmail(body.to, body.days || 7));
     // 月次レポート（月間＋通算の2通）を今すぐ手動で送る（動作確認用。本番は毎月1日にトリガーで自動実行）
@@ -78,6 +84,7 @@ function getAllData() {
     requests:  getSheetData(ss, SHEET_REQUEST),
     infos:     getSheetData(ss, SHEET_INFO),
     staff:     getSheetData(ss, SHEET_STAFF),
+    trivia:    getSheetData(ss, SHEET_TRIVIA),
   };
 }
 
@@ -235,6 +242,60 @@ function migrateAddVersionColumn() {
     cell.setValue('appVersion');
   });
   return { ok: true };
+}
+
+// ============================================================
+//  トリビア（豆知識）シートの初期データ投入
+//  「本日の状況」全画面表示の一番下に出す豆知識を、コード埋め込みから
+//  スプレッドシート管理に切り替えるための一回限りの初期投入（2026-09-18）。
+//  スクリプトエディタからこの関数を手動で一度だけ実行する。
+//  すでにtriviaシートにデータがある場合は何もしない（実行しても安全）。
+//  monthsは対象月をカンマ区切りで指定（例: "1,2,3"）。空欄なら通年で登場する。
+// ============================================================
+function seedTriviaSheet() {
+  const sheet = getOrCreateSheet(SHEET_TRIVIA, ['id', 'months', 'text', 'lastShownAt', 'appVersion']);
+  if (sheet.getLastRow() > 1) return { ok: true, skipped: true, reason: 'already has data' };
+
+  const items = [
+    { months: '1',  text: '1月は年賀状印刷の反省会シーズン。来年に向けた販促印刷のご提案にちょうど良い時期です。' },
+    { months: '2',  text: '2月は確定申告関連の書類印刷が地味に増える時期です。' },
+    { months: '3',  text: '3月は卒業・卒園シーズン。記念品や名入れグッズのお問い合わせが増えます。' },
+    { months: '4',  text: '4月は新年度の名刺・案内状のご依頼が集中しやすい時期です。' },
+    { months: '5',  text: '5月病対策には、気分転換に新しい販促ツールのご提案はいかがでしょう。' },
+    { months: '6',  text: '6月は梅雨時期。屋外掲示物は耐水加工のご相談が増える季節です。' },
+    { months: '7',  text: '7月は夏祭り・花火大会関連のチラシ需要がピークになる時期です。' },
+    { months: '8',  text: '8月はお盆商戦向けPOP・チラシ制作がひと段落する時期です。' },
+    { months: '9',  text: '9月は衣替えとともに秋冬の販促物切り替えのご相談が増えます。' },
+    { months: '10', text: '10月はハロウィン、そして年末に向けた印刷計画を立て始める時期です。' },
+    { months: '11', text: '11月は年賀状印刷の受付ラッシュが始まる時期です。' },
+    { months: '12', text: '12月は年末年始の挨拶状・カレンダー印刷が最盛期を迎えます。' },
+    { months: '',   text: '「思ってた色と違う」は、画面と印刷物の色の見え方の違いが原因のことが多いです。' },
+    { months: '',   text: '紙の目（繊維の向き）を意識するだけで、折りの仕上がりがぐっと美しくなります。' },
+    { months: '',   text: '印刷でキレイに見えるかどうかの目安は、だいたい解像度300dpiと言われています。' },
+    { months: '',   text: '同じ紙でも厚み（連量）が変わると、手に取った時の高級感が大きく変わります。' },
+    { months: '',   text: 'PDF入稿は「フォントの埋め込み」を忘れると文字化けの原因になりがちです。' },
+    { months: '',   text: '特色（DIC・PANTONE）を使うと、ブランドカラーをより正確に再現できます。' },
+    { months: '',   text: '紙媒体は「手に取ってもらえる」という、デジタルにはない強みがあります。' },
+    { months: '',   text: 'QRコード付きチラシは、紙とデジタルをつなぐ定番の販促手法になっています。' },
+    { months: '',   text: '環境配慮型の再生紙やFSC認証紙を使うだけで、企業イメージ向上につながります。' },
+    { months: '',   text: '名刺交換の場でも、紙質や加工にこだわった一枚は印象に残りやすいです。' },
+  ];
+  items.forEach(item => {
+    appendRowAsText(sheet, [genIdServer(), item.months, item.text, '', '']);
+  });
+  return { ok: true, count: items.length };
+}
+function genIdServer() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+// トリビアのまとめ追加。週次でネタを追加していく運用で使う想定（items: [{months, text}, ...]）
+function addTriviaBatch(items) {
+  const sheet = getOrCreateSheet(SHEET_TRIVIA, ['id', 'months', 'text', 'lastShownAt', 'appVersion']);
+  (items || []).forEach(item => {
+    appendRowAsText(sheet, [genIdServer(), item.months || '', item.text, '', '']);
+  });
+  return { ok: true, count: (items || []).length };
 }
 
 // ============================================================
