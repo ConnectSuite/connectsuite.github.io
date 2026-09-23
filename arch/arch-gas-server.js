@@ -53,6 +53,8 @@ function doPost(e) {
     if (action === 'bulkUpdateStaffOrder') return jsonResponse(bulkUpdateStaffOrder(body.updates));
 
     if (action === 'migrateAddVersionColumn') return jsonResponse(migrateAddVersionColumn());
+    // triviaシートへの初期データ投入（一回限り。既にデータがあれば安全にスキップされる）
+    if (action === 'seedTriviaSheet') return jsonResponse(seedTriviaSheet());
 
     // 「本日の状況」画面のトリビア：表示したことを記録（約1ヶ月は同じネタを出さないための履歴）
     if (action === 'markTriviaShown') return jsonResponse(editRow(SHEET_TRIVIA, body.id, { lastShownAt: body.lastShownAt }));
