@@ -653,8 +653,8 @@ function sendMonthlyReportsTo_(recipients) {
   const allTimeHtml = buildReportHtml(allTimeData, '通算レポート', '■ ご依頼：現時点で未対応のもの（全期間）', allTimeCharts);
 
   const to = recipients.join(',');
-  MailApp.sendEmail({ to, subject: `月間レポート ${y}年${m}月分`, htmlBody: monthlyHtml, inlineImages: monthlyCharts.inlineImages });
-  MailApp.sendEmail({ to, subject: `通算レポート（${allTimeData.fromStr} 〜 ${allTimeData.toStr}）`, htmlBody: allTimeHtml, inlineImages: allTimeCharts.inlineImages });
+  MailApp.sendEmail({ to, subject: `【行動予定表】月間レポート ${y}年${m}月分`, htmlBody: monthlyHtml, inlineImages: monthlyCharts.inlineImages });
+  MailApp.sendEmail({ to, subject: `【行動予定表】通算レポート（${allTimeData.fromStr} 〜 ${allTimeData.toStr}）`, htmlBody: allTimeHtml, inlineImages: allTimeCharts.inlineImages });
   return { ok: true, month: `${y}-${m}`, monthlyCount: monthlyData.totalCount, allTimeCount: allTimeData.totalCount };
 }
 
