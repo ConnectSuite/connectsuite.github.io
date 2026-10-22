@@ -327,6 +327,12 @@ function parseDateStrToDate(s) {
 
 // 集計本体（日付範囲指定版）。fromDate/toDateは両端を含む。
 // pendingScope: 'range' なら入電がこの期間内のもの、'all' なら全期間の未対応を対象にする
+// クライアント名の末尾の「様」（直前の空白も）を外して集計する。入力時に「様」を付けたり付けなかったりで
+// 同じ会社が別々に数えられていたため（2026-10-22）。会社名そのもの（株式会社の有無等）は触らない
+function normalizeClientName_(name) {
+  return String(name == null ? '' : name).replace(/[\s　]*様[\s　]*$/, '').trim();
+}
+
 function buildReportDataForRange(fromDate, toDate, pendingScope) {
   const ss = SpreadsheetApp.openById(SHEET_ID);
   const schedules = getSheetData(ss, SHEET_SCHEDULE);
@@ -441,7 +447,7 @@ function buildReportDataForRange(fromDate, toDate, pendingScope) {
     return dt >= fromDate && dt <= toDate;
   });
   const byClient = {};
-  targetRequests.forEach(r => { byClient[r.client] = (byClient[r.client] || 0) + 1; });
+  targetRequests.forEach(r => { const c = normalizeClientName_(r.client); byClient[c] = (byClient[c] || 0) + 1; });
   const clientRows = Object.entries(byClient).map(([client, count]) => ({ client, count }))
     .sort((a, b) => b.count - a.count).slice(0, 8);
 
