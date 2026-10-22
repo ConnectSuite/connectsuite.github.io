@@ -23,6 +23,7 @@ function doGet(e) {
     // ダッシュボードの「今すぐ送信」リンクから開けるよう、GET経由でも呼べるようにしておく
     // （リンクを新しいタブで開くだけなので、fetch()のCORS制約を気にしなくて済む）
     if (e.parameter.action === 'sendMonthlyReportsNow') return jsonResponse(sendMonthlyReports());
+    if (e.parameter.action === 'sendMonthlyReportsTestToOwner') return jsonResponse(sendMonthlyReportsTestToOwner());
   } catch(err) {
     return jsonResponse({ error: err.message });
   }
@@ -628,6 +629,16 @@ const REPORT_RECIPIENTS = ['makoto@aoki-prt.co.jp', 'hama@arch-img.co.jp'];
 // 「月間レポート」（先月分）と「通算レポート」（運用開始日〜今日）の2通を送る。
 // 毎月1日にトリガーで自動実行する想定（setupMonthlyTriggerで設定）。
 function sendMonthlyReports() {
+  return sendMonthlyReportsTo_(REPORT_RECIPIENTS);
+}
+
+// 内容確認用：宛先をコード内で青木様のみに固定した試験送信。引数を一切受け取らないので、
+// お客様（REPORT_RECIPIENTS側）に誤って届くことはない（2026-10-22）。
+function sendMonthlyReportsTestToOwner() {
+  return sendMonthlyReportsTo_(['makoto@aoki-prt.co.jp']);
+}
+
+function sendMonthlyReportsTo_(recipients) {
   const now = new Date();
   // 実行日の前月を対象にする（1日に実行される想定なので、前月が「先月分」になる）
   const targetMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -641,7 +652,7 @@ function sendMonthlyReports() {
   const allTimeCharts = buildReportCharts(allTimeData);
   const allTimeHtml = buildReportHtml(allTimeData, '通算レポート', '■ ご依頼：現時点で未対応のもの（全期間）', allTimeCharts);
 
-  const to = REPORT_RECIPIENTS.join(',');
+  const to = recipients.join(',');
   MailApp.sendEmail({ to, subject: `月間レポート ${y}年${m}月分`, htmlBody: monthlyHtml, inlineImages: monthlyCharts.inlineImages });
   MailApp.sendEmail({ to, subject: `通算レポート（${allTimeData.fromStr} 〜 ${allTimeData.toStr}）`, htmlBody: allTimeHtml, inlineImages: allTimeCharts.inlineImages });
   return { ok: true, month: `${y}-${m}`, monthlyCount: monthlyData.totalCount, allTimeCount: allTimeData.totalCount };
