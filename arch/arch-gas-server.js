@@ -650,12 +650,14 @@ function sendReportMail_(to, subject, htmlBody, inlineImages) {
         from: REPORT_FROM, name: REPORT_SENDER_NAME, replyTo: REPORT_FROM,
         htmlBody, inlineImages,
       });
-      return;
+      return 'gmail-alias';
     }
   } catch (err) {
     console.warn('GmailApp送信に失敗、MailAppにフォールバック: ' + err.message);
+    var gmailError = err.message;
   }
   MailApp.sendEmail({ to, subject, htmlBody, inlineImages, name: REPORT_SENDER_NAME, replyTo: REPORT_FROM });
+  return gmailError ? 'mailapp(fallback: ' + gmailError + ')' : 'mailapp';
 }
 
 // 手動実行用（メールは送らない）：Gmailの権限承認と、別名の登録状況の確認。
@@ -682,9 +684,9 @@ function sendMonthlyReportsTo_(recipients) {
   const allTimeHtml = buildReportHtml(allTimeData, '通算レポート', '■ ご依頼：現時点で未対応のもの（全期間）', allTimeCharts);
 
   const to = recipients.join(',');
-  sendReportMail_(to, `【行動予定表】月間レポート ${y}年${m}月分`, monthlyHtml, monthlyCharts.inlineImages);
-  sendReportMail_(to, `【行動予定表】通算レポート（${allTimeData.fromStr} 〜 ${allTimeData.toStr}）`, allTimeHtml, allTimeCharts.inlineImages);
-  return { ok: true, month: `${y}-${m}`, monthlyCount: monthlyData.totalCount, allTimeCount: allTimeData.totalCount };
+  const via1 = sendReportMail_(to, `【行動予定表】月間レポート ${y}年${m}月分`, monthlyHtml, monthlyCharts.inlineImages);
+  const via2 = sendReportMail_(to, `【行動予定表】通算レポート（${allTimeData.fromStr} 〜 ${allTimeData.toStr}）`, allTimeHtml, allTimeCharts.inlineImages);
+  return { ok: true, to, via: [via1, via2], month: `${y}-${m}`, monthlyCount: monthlyData.totalCount, allTimeCount: allTimeData.totalCount };
 }
 
 // 初回のみ：「毎月1日 朝9時」にsendMonthlyReportsを自動実行するトリガーを設定する。
