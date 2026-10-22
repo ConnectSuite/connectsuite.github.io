@@ -638,6 +638,35 @@ function sendMonthlyReportsTestToOwner() {
   return sendMonthlyReportsTo_(['makoto@aoki-prt.co.jp']);
 }
 
+// レポートメールの送信元。MailAppは送信元を指定できないため、Gmailの「別のアドレスから送信」に
+// 登録・確認済みの別名があればGmailApp経由でその別名から送る（2026-10-22）。
+// 別名が未登録・未承認・権限未承認の場合は従来どおりMailAppで送る（自動送信が止まらないようにするため）。
+const REPORT_FROM = 'makoto@aoki-prt.co.jp';
+const REPORT_SENDER_NAME = '行動予定表';
+function sendReportMail_(to, subject, htmlBody, inlineImages) {
+  try {
+    if (GmailApp.getAliases().indexOf(REPORT_FROM) !== -1) {
+      GmailApp.sendEmail(to, subject, 'HTMLメールを表示できるメールソフトでご覧ください。', {
+        from: REPORT_FROM, name: REPORT_SENDER_NAME, replyTo: REPORT_FROM,
+        htmlBody, inlineImages,
+      });
+      return;
+    }
+  } catch (err) {
+    console.warn('GmailApp送信に失敗、MailAppにフォールバック: ' + err.message);
+  }
+  MailApp.sendEmail({ to, subject, htmlBody, inlineImages, name: REPORT_SENDER_NAME, replyTo: REPORT_FROM });
+}
+
+// 手動実行用（メールは送らない）：Gmailの権限承認と、別名の登録状況の確認。
+// スクリプトエディタでこの関数を選んで「実行」→権限を承認→実行ログに別名一覧が出る。
+function authorizeGmailAndListAliases() {
+  const aliases = GmailApp.getAliases();
+  console.log('登録済みの別名: ' + JSON.stringify(aliases));
+  console.log(REPORT_FROM + ' は ' + (aliases.indexOf(REPORT_FROM) !== -1 ? '使用可能です' : '未登録です（Gmailの設定→アカウント→別のアドレスから送信 で追加・確認してください）'));
+  return { ok: true, aliases, usable: aliases.indexOf(REPORT_FROM) !== -1 };
+}
+
 function sendMonthlyReportsTo_(recipients) {
   const now = new Date();
   // 実行日の前月を対象にする（1日に実行される想定なので、前月が「先月分」になる）
@@ -653,8 +682,8 @@ function sendMonthlyReportsTo_(recipients) {
   const allTimeHtml = buildReportHtml(allTimeData, '通算レポート', '■ ご依頼：現時点で未対応のもの（全期間）', allTimeCharts);
 
   const to = recipients.join(',');
-  MailApp.sendEmail({ to, subject: `【行動予定表】月間レポート ${y}年${m}月分`, htmlBody: monthlyHtml, inlineImages: monthlyCharts.inlineImages });
-  MailApp.sendEmail({ to, subject: `【行動予定表】通算レポート（${allTimeData.fromStr} 〜 ${allTimeData.toStr}）`, htmlBody: allTimeHtml, inlineImages: allTimeCharts.inlineImages });
+  sendReportMail_(to, `【行動予定表】月間レポート ${y}年${m}月分`, monthlyHtml, monthlyCharts.inlineImages);
+  sendReportMail_(to, `【行動予定表】通算レポート（${allTimeData.fromStr} 〜 ${allTimeData.toStr}）`, allTimeHtml, allTimeCharts.inlineImages);
   return { ok: true, month: `${y}-${m}`, monthlyCount: monthlyData.totalCount, allTimeCount: allTimeData.totalCount };
 }
 
