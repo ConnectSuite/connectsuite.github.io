@@ -24,6 +24,7 @@ function doGet(e) {
     // （リンクを新しいタブで開くだけなので、fetch()のCORS制約を気にしなくて済む）
     if (e.parameter.action === 'sendMonthlyReportsNow') return jsonResponse(sendMonthlyReports());
     if (e.parameter.action === 'sendMonthlyReportsTestToOwner') return jsonResponse(sendMonthlyReportsTestToOwner());
+    if (e.parameter.action === 'sendMonthlyReportsAliasTestToOwner') return jsonResponse(sendMonthlyReportsAliasTestToOwner());
   } catch(err) {
     return jsonResponse({ error: err.message });
   }
@@ -647,9 +648,9 @@ const REPORT_FROM = 'makoto@aoki-prt.co.jp';
 // ※Gmailの配信失敗は後から返るエラー通知で、GAS側では例外にならない（trueのまま放置すると黙って届かなくなる）
 const USE_ALIAS_SENDER = false;
 const REPORT_SENDER_NAME = '行動予定表';
-function sendReportMail_(to, subject, htmlBody, inlineImages) {
+function sendReportMail_(to, subject, htmlBody, inlineImages, forceAlias) {
   try {
-    if (USE_ALIAS_SENDER && GmailApp.getAliases().indexOf(REPORT_FROM) !== -1) {
+    if ((USE_ALIAS_SENDER || forceAlias) && GmailApp.getAliases().indexOf(REPORT_FROM) !== -1) {
       GmailApp.sendEmail(to, subject, 'HTMLメールを表示できるメールソフトでご覧ください。', {
         from: REPORT_FROM, name: REPORT_SENDER_NAME, replyTo: REPORT_FROM,
         htmlBody, inlineImages,
@@ -673,7 +674,13 @@ function authorizeGmailAndListAliases() {
   return { ok: true, aliases, usable: aliases.indexOf(REPORT_FROM) !== -1 };
 }
 
-function sendMonthlyReportsTo_(recipients) {
+// 別名（makoto@aoki-prt.co.jp）経由の送信が届くかの試験。宛先は青木様ご本人の2アドレスにコード固定
+// （お客様には届かない）。本番設定USE_ALIAS_SENDERは変更しない。
+function sendMonthlyReportsAliasTestToOwner() {
+  return sendMonthlyReportsTo_(['makotoaoki1979@gmail.com', 'makoto@aoki-prt.co.jp'], true);
+}
+
+function sendMonthlyReportsTo_(recipients, forceAlias) {
   const now = new Date();
   // 実行日の前月を対象にする（1日に実行される想定なので、前月が「先月分」になる）
   const targetMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -688,8 +695,8 @@ function sendMonthlyReportsTo_(recipients) {
   const allTimeHtml = buildReportHtml(allTimeData, '通算レポート', '■ ご依頼：現時点で未対応のもの（全期間）', allTimeCharts);
 
   const to = recipients.join(',');
-  const via1 = sendReportMail_(to, `【行動予定表】月間レポート ${y}年${m}月分`, monthlyHtml, monthlyCharts.inlineImages);
-  const via2 = sendReportMail_(to, `【行動予定表】通算レポート（${allTimeData.fromStr} 〜 ${allTimeData.toStr}）`, allTimeHtml, allTimeCharts.inlineImages);
+  const via1 = sendReportMail_(to, `【行動予定表】月間レポート ${y}年${m}月分`, monthlyHtml, monthlyCharts.inlineImages, forceAlias);
+  const via2 = sendReportMail_(to, `【行動予定表】通算レポート（${allTimeData.fromStr} 〜 ${allTimeData.toStr}）`, allTimeHtml, allTimeCharts.inlineImages, forceAlias);
   return { ok: true, to, via: [via1, via2], month: `${y}-${m}`, monthlyCount: monthlyData.totalCount, allTimeCount: allTimeData.totalCount };
 }
 
