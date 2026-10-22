@@ -674,10 +674,10 @@ function authorizeGmailAndListAliases() {
   return { ok: true, aliases, usable: aliases.indexOf(REPORT_FROM) !== -1 };
 }
 
-// 別名（makoto@aoki-prt.co.jp）経由の送信が届くかの試験。宛先は青木様ご本人の2アドレスにコード固定
+// 別名（makoto@aoki-prt.co.jp）経由の送信が届くかの試験。宛先は青木様ご本人（makoto@aoki-prt.co.jp）のみにコード固定
 // （お客様には届かない）。本番設定USE_ALIAS_SENDERは変更しない。
 function sendMonthlyReportsAliasTestToOwner() {
-  return sendMonthlyReportsTo_(['makotoaoki1979@gmail.com', 'makoto@aoki-prt.co.jp'], true);
+  return sendMonthlyReportsTo_(['makoto@aoki-prt.co.jp'], true);
 }
 
 function sendMonthlyReportsTo_(recipients, forceAlias) {
