@@ -643,10 +643,10 @@ function sendMonthlyReportsTestToOwner() {
 // 登録・確認済みの別名があればGmailApp経由でその別名から送る（2026-10-22）。
 // 別名が未登録・未承認・権限未承認の場合は従来どおりMailAppで送る（自動送信が止まらないようにするため）。
 const REPORT_FROM = 'makoto@aoki-prt.co.jp';
-// 2026-10-22時点：Gmail側の別名（mail.aoki-prt.co.jp経由）がTLS証明書不一致で配信に失敗するため、
-// 別名経由の送信は停止中（falseのまま）。Gmail側のSMTP設定を直して試験送信が届くことを確認してからtrueにする。
-// ※Gmailの配信失敗は後から返るエラー通知で、GAS側では例外にならない（trueのまま放置すると黙って届かなくなる）
-const USE_ALIAS_SENDER = false;
+// 2026-10-22：Gmail側のSMTP設定を直し、別名経由の試験送信（gmail/aoki-prt両方）が届くことを確認して有効化。
+// ※Gmailの配信失敗は後から返るエラー通知で、GAS側では例外にならない。届かなくなったら
+//   Gmailに「Delivery Status Notification (Failure)」が来るので、その場合はfalseに戻して従来のMailApp送信にする
+const USE_ALIAS_SENDER = true;
 const REPORT_SENDER_NAME = '行動予定表';
 function sendReportMail_(to, subject, htmlBody, inlineImages, forceAlias) {
   try {
