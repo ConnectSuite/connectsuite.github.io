@@ -622,8 +622,8 @@ function sendReportEmail(toAddress, days) {
   return { ok: true, totalCount: data.totalCount };
 }
 
-// 月次レポートの送付先。今はまこと様のみ、今後増やす場合はここにカンマ区切りで追加する
-const REPORT_RECIPIENTS = ['makoto@aoki-prt.co.jp'];
+// 月次レポートの送付先。2026-11-1配信分から、お客様（アーチ・イメージング 浜田社長）にも送る
+const REPORT_RECIPIENTS = ['makoto@aoki-prt.co.jp', 'hama@arch-img.co.jp'];
 
 // 「月間レポート」（先月分）と「通算レポート」（運用開始日〜今日）の2通を送る。
 // 毎月1日にトリガーで自動実行する想定（setupMonthlyTriggerで設定）。
