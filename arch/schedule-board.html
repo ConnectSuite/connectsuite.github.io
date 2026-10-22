@@ -1148,14 +1148,16 @@ function showStatsOverlay() {
 
   const today = todayStr();
   const requests = loadRequest();
-  const todaysRequests = requests.filter(r => (r.dateStr || today) === today);
+  // 担当者欄が「NO」のご依頼は不要と判断したものなので、件数に含めない
+  const countable = requests.filter(r => String(r.staff || '').trim().toUpperCase() !== 'NO');
+  const todaysRequests = countable.filter(r => (r.dateStr || today) === today);
   const reqDone = todaysRequests.filter(r => r.staff).length;
 
   const todaysSchedules = loadSchedule().filter(r => (r.dateStr || today) === today);
   const schedDone = todaysSchedules.filter(r => /^\d{2}:\d{2}$/.test(r.return)).length;
 
   const dayNum = Math.floor((new Date().setHours(0,0,0,0) - new Date(OPS_START_DATE).setHours(0,0,0,0)) / 86400000) + 1;
-  const allTimeDone = requests.filter(r => r.staff).length;
+  const allTimeDone = countable.filter(r => r.staff).length;
 
   const reqPct = todaysRequests.length ? Math.round(reqDone / todaysRequests.length * 100) : 0;
   const schedPct = todaysSchedules.length ? Math.round(schedDone / todaysSchedules.length * 100) : 0;
@@ -2094,7 +2096,7 @@ async function seedInitialStaffIfEmpty() {
 //  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
 //  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
 // ============================================================
-const APP_VERSION = '1.13.13';
+const APP_VERSION = '1.13.14';
 (function showVersionBadge() {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = `Ver.${APP_VERSION}`;

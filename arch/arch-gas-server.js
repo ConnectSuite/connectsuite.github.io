@@ -327,6 +327,12 @@ function parseDateStrToDate(s) {
 
 // 集計本体（日付範囲指定版）。fromDate/toDateは両端を含む。
 // pendingScope: 'range' なら入電がこの期間内のもの、'all' なら全期間の未対応を対象にする
+// 担当者欄に「NO」が入っているご依頼は、青木様が「不要」と判断したものにNOを入れた印。
+// ご依頼の件数・対応件数の集計からは除外する（2026-10-22）
+function isNoRequest_(r) {
+  return String(r && r.staff != null ? r.staff : '').trim().toUpperCase() === 'NO';
+}
+
 // クライアント名の末尾の「様」（直前の空白も）を外して集計する。入力時に「様」を付けたり付けなかったりで
 // 同じ会社が別々に数えられていたため（2026-10-22）。会社名そのもの（株式会社の有無等）は触らない
 function normalizeClientName_(name) {
@@ -443,6 +449,7 @@ function buildReportDataForRange(fromDate, toDate, pendingScope) {
   // ご依頼：対象期間に入電した分のクライアント別・担当者別グラフ用集計
   const targetRequests = requests.filter(r => {
     if (!r.dateStr) return false;
+    if (isNoRequest_(r)) return false; // 担当者欄に「NO」＝不要と判断したご依頼。対応件数には数えない
     const dt = parseDateStrToDate(r.dateStr);
     return dt >= fromDate && dt <= toDate;
   });
