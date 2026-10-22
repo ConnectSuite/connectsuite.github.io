@@ -352,9 +352,10 @@ function buildReportDataForRange(fromDate, toDate, pendingScope) {
   const byPerson = {};
   targetSchedules.forEach(s => {
     if (!byPerson[s.name]) {
-      byPerson[s.name] = { count: 0, totalMin: 0, timedCount: 0, categories: {外出:0,終日外出:0,直帰:0,在席:0,テレワーク:0} };
+      byPerson[s.name] = { count: 0, visits: 0, totalMin: 0, timedCount: 0, categories: {外出:0,終日外出:0,直帰:0,在席:0,テレワーク:0} };
     }
     byPerson[s.name].count++;
+    byPerson[s.name].visits += splitDestForReport(s.dest).length; // 訪問先件数（行先欄の複数訪問先は分割して数える）
     byPerson[s.name].categories[classifySchedule(s)]++;
     if (/^\d{2}:\d{2}$/.test(s.start) && /^\d{2}:\d{2}$/.test(s.return)) {
       const [sh, sm] = s.start.split(':').map(Number);
@@ -366,7 +367,7 @@ function buildReportDataForRange(fromDate, toDate, pendingScope) {
   const personRows = Object.keys(byPerson).map(name => {
     const p = byPerson[name];
     return {
-      name, count: p.count,
+      name, count: p.count, visits: p.visits,
       avgMin: p.timedCount ? Math.round(p.totalMin / p.timedCount) : null,
       totalMin: p.totalMin,
       categories: p.categories,
@@ -520,7 +521,7 @@ function buildReportCharts(data) {
   return { pieImgs, clientBarHtml, staffBarHtml, inlineImages };
 }
 
-function buildReportHtml(data, title, pendingSectionLabel, charts) {
+function buildReportHtml(data, title, pendingSectionLabel, charts, description) {
   title = title || '行動予定表 活動レポート';
   pendingSectionLabel = pendingSectionLabel || '■ ご依頼：未対応の滞留状況';
   charts = charts || { pieImgs: '', clientBarHtml: '', staffBarHtml: '' };
@@ -534,6 +535,7 @@ function buildReportHtml(data, title, pendingSectionLabel, charts) {
     <tr>
       <td ${td}>${esc(p.name)}</td>
       <td ${tdR}>${p.count}件</td>
+      <td ${tdR}>${p.visits}件</td>
       <td ${tdR}>${p.avgMin != null ? p.avgMin + '分' : '－'}</td>
     </tr>`).join('');
 
@@ -564,6 +566,7 @@ function buildReportHtml(data, title, pendingSectionLabel, charts) {
   return `
   <div style="font-family:'Hiragino Sans','Noto Sans JP',sans-serif;color:#222;max-width:640px;">
     <h2 style="margin-bottom:4px;">${esc(title)}</h2>
+    ${description ? `<p style="font-size:14px;margin:4px 0 8px;">${esc(description)}</p>` : ''}
     <p style="color:#666;font-size:13px;margin-top:0;">対象期間：${data.fromStr} 〜 ${data.toStr}／行動予定 合計${data.totalCount}件</p>
 
     ${charts.pieImgs ? `
@@ -581,11 +584,12 @@ function buildReportHtml(data, title, pendingSectionLabel, charts) {
     <h3 style="margin-bottom:6px;margin-top:20px;">${esc(pendingSectionLabel)}</h3>
     ${pendingTable}
 
-    <h3 style="margin-bottom:6px;margin-top:20px;">■ 人別 外出件数・平均外出時間</h3>
+    <h3 style="margin-bottom:6px;margin-top:20px;">■ 人別 外出件数・訪問先件数・平均外出時間</h3>
     <table style="border-collapse:collapse;width:100%;margin-bottom:8px;">
-      <tr><th ${th}>氏名</th><th ${th} style="text-align:right;">外出件数</th><th ${th} style="text-align:right;">平均外出時間</th></tr>
+      <tr><th ${th}>氏名</th><th ${th} style="text-align:right;">外出件数</th><th ${th} style="text-align:right;">訪問先件数</th><th ${th} style="text-align:right;">平均外出時間</th></tr>
       ${personTable}
     </table>
+    <p style="color:#999;font-size:12px;margin-top:0;">訪問先件数：1回の外出で複数の訪問先を回った場合は、それぞれを1件として数えています。</p>
 
     <h3 style="margin-bottom:6px;margin-top:20px;">■ 行先別 頻度（上位15件・複数訪問先は分割集計）</h3>
     <table style="border-collapse:collapse;width:100%;margin-bottom:8px;">
@@ -688,11 +692,11 @@ function sendMonthlyReportsTo_(recipients, forceAlias) {
 
   const monthlyData = buildMonthlyReportData(y, m);
   const monthlyCharts = buildReportCharts(monthlyData);
-  const monthlyHtml = buildReportHtml(monthlyData, `月間レポート ${y}年${m}月分`, `■ ご依頼：${m}月受付分で未対応のもの`, monthlyCharts);
+  const monthlyHtml = buildReportHtml(monthlyData, `月間レポート ${y}年${m}月分`, `■ ご依頼：${m}月受付分で未対応のもの`, monthlyCharts, `先月（${m}月）1か月分の実績をまとめた月間レポートです。運用開始からの累計は、別メールの「通算レポート」をご覧ください。`);
 
   const allTimeData = buildAllTimeReportData();
   const allTimeCharts = buildReportCharts(allTimeData);
-  const allTimeHtml = buildReportHtml(allTimeData, '通算レポート', '■ ご依頼：現時点で未対応のもの（全期間）', allTimeCharts);
+  const allTimeHtml = buildReportHtml(allTimeData, '通算レポート', '■ ご依頼：現時点で未対応のもの（全期間）', allTimeCharts, '運用開始から現在までの累計をまとめた通算レポートです。先月1か月分の実績は、別メールの「月間レポート」をご覧ください。');
 
   const to = recipients.join(',');
   const via1 = sendReportMail_(to, `【行動予定表】月間レポート ${y}年${m}月分`, monthlyHtml, monthlyCharts.inlineImages, forceAlias);
