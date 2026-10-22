@@ -382,6 +382,23 @@ function buildReportDataForRange(fromDate, toDate, pendingScope) {
   const destRows = Object.entries(byDest).map(([dest, count]) => ({ dest, count }))
     .sort((a, b) => b.count - a.count).slice(0, 15);
 
+  // 同じ日に同じ訪問先へ複数回行ったケース（効率の確認用）。複数のスタッフが同じ日に同じ訪問先へ行った場合も含む。
+  // 1件の行先欄に同じ訪問先が重複して書かれていても、その件では1回と数える
+  const byDayDest = {};
+  targetSchedules.forEach(s => {
+    Array.from(new Set(splitDestForReport(s.dest))).forEach(d => {
+      const key = s.dateStr + '\t' + d;
+      (byDayDest[key] = byDayDest[key] || []).push(s.name);
+    });
+  });
+  const repeatVisits = Object.keys(byDayDest).filter(k => byDayDest[k].length >= 2).map(k => {
+    const [dateStr, dest] = k.split('\t');
+    const per = {};
+    byDayDest[k].forEach(n => { per[n] = (per[n] || 0) + 1; });
+    const who = Object.keys(per).map(n => n.split(' ')[0] + (per[n] > 1 ? '×' + per[n] : '')).join('、');
+    return { dateStr, dest, count: byDayDest[k].length, who };
+  }).sort((a, b) => (b.count - a.count) || (parseDateStrToDate(b.dateStr) - parseDateStrToDate(a.dateStr)));
+
   // 曜日別件数
   const DOW = ['日','月','火','水','木','金','土'];
   const byDow = [0,0,0,0,0,0,0];
@@ -426,7 +443,7 @@ function buildReportDataForRange(fromDate, toDate, pendingScope) {
   return {
     fromStr: fmtDate(fromDate), toStr: fmtDate(toDate),
     totalCount: targetSchedules.length,
-    personRows, destRows, byDow, DOW, pendingRequests,
+    personRows, destRows, repeatVisits, byDow, DOW, pendingRequests,
     clientRows, reqStaffRows, requestTotalCount: targetRequests.length,
   };
 }
@@ -558,6 +575,18 @@ function buildReportHtml(data, title, pendingSectionLabel, charts, description) 
           </tr>`).join('')}
       </table>`;
 
+  const repeats = data.repeatVisits || [];
+  const repeatSection = `
+    <h3 style="margin-bottom:6px;margin-top:20px;">■ 同じ日に同じ訪問先へ複数回行ったケース</h3>
+    <p style="color:#666;font-size:13px;margin-top:0;">${repeats.length === 0
+      ? '対象期間中、該当するケースはありませんでした。'
+      : `対象期間中 ${repeats.length}件（日付×訪問先）。回数の多い上位${Math.min(10, repeats.length)}件です。複数のスタッフが同じ日に同じ訪問先へ行った場合も含みます。`}</p>
+    ${repeats.length === 0 ? '' : `<table style="border-collapse:collapse;width:100%;margin-bottom:8px;">
+      <tr><th ${th}>日付</th><th ${th}>訪問先</th><th ${th} style="text-align:right;">回数</th><th ${th}>訪問者</th></tr>
+      ${repeats.slice(0, 10).map(r => `
+      <tr><td ${td}>${esc(r.dateStr)}</td><td ${td}>${esc(r.dest)}</td><td ${tdR}>${r.count}回</td><td ${td}>${esc(r.who)}</td></tr>`).join('')}
+    </table>`}`;
+
   const spanDays = Math.round((new Date(data.toStr) - new Date(data.fromStr)) / 86400000) + 1;
   const dowCaveat = spanDays < 90
     ? `<p style="color:#999;font-size:12px;">※期間が短いため、曜日別の傾向はまだ参考値としてご覧ください。</p>`
@@ -596,6 +625,8 @@ function buildReportHtml(data, title, pendingSectionLabel, charts, description) 
       <tr><th ${th}>行先</th><th ${th} style="text-align:right;">件数</th></tr>
       ${destTable}
     </table>
+
+    ${repeatSection}
 
     <h3 style="margin-bottom:6px;margin-top:20px;">■ 曜日別 外出件数（参考値）</h3>
     <table style="border-collapse:collapse;width:100%;margin-bottom:8px;">
