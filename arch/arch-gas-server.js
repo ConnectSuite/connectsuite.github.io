@@ -352,10 +352,9 @@ function buildReportDataForRange(fromDate, toDate, pendingScope) {
   const byPerson = {};
   targetSchedules.forEach(s => {
     if (!byPerson[s.name]) {
-      byPerson[s.name] = { count: 0, visits: 0, totalMin: 0, timedCount: 0, categories: {外出:0,終日外出:0,直帰:0,在席:0,テレワーク:0} };
+      byPerson[s.name] = { count: 0, totalMin: 0, timedCount: 0, categories: {外出:0,終日外出:0,直帰:0,在席:0,テレワーク:0} };
     }
     byPerson[s.name].count++;
-    byPerson[s.name].visits += splitDestForReport(s.dest).length; // 訪問先件数（行先欄の複数訪問先は分割して数える）
     byPerson[s.name].categories[classifySchedule(s)]++;
     if (/^\d{2}:\d{2}$/.test(s.start) && /^\d{2}:\d{2}$/.test(s.return)) {
       const [sh, sm] = s.start.split(':').map(Number);
@@ -367,7 +366,7 @@ function buildReportDataForRange(fromDate, toDate, pendingScope) {
   const personRows = Object.keys(byPerson).map(name => {
     const p = byPerson[name];
     return {
-      name, count: p.count, visits: p.visits,
+      name, count: p.count,
       avgMin: p.timedCount ? Math.round(p.totalMin / p.timedCount) : null,
       totalMin: p.totalMin,
       categories: p.categories,
@@ -381,6 +380,21 @@ function buildReportDataForRange(fromDate, toDate, pendingScope) {
   });
   const destRows = Object.entries(byDest).map(([dest, count]) => ({ dest, count }))
     .sort((a, b) => b.count - a.count).slice(0, 15);
+
+  // 個人別×訪問先の訪問回数（期間内）。誰がどこに何回行っているかを、回数の多い順に出す。
+  // 1件の行先欄に複数の訪問先があれば、それぞれを1回と数える（同じ件内の重複は1回）
+  const byPersonDest = {};
+  targetSchedules.forEach(s => {
+    Array.from(new Set(splitDestForReport(s.dest))).forEach(d => {
+      const pd = byPersonDest[s.name] = byPersonDest[s.name] || {};
+      pd[d] = (pd[d] || 0) + 1;
+    });
+  });
+  const personDestRows = Object.keys(byPersonDest).map(name => {
+    const items = Object.keys(byPersonDest[name]).map(dest => ({ dest, count: byPersonDest[name][dest] }))
+      .sort((a, b) => (b.count - a.count) || a.dest.localeCompare(b.dest));
+    return { name, total: items.reduce((sum, it) => sum + it.count, 0), items };
+  }).sort((a, b) => b.total - a.total);
 
   // 同じ日に同じ訪問先へ複数回行ったケース（効率の確認用）。複数のスタッフが同じ日に同じ訪問先へ行った場合も含む。
   // 1件の行先欄に同じ訪問先が重複して書かれていても、その件では1回と数える
@@ -443,7 +457,7 @@ function buildReportDataForRange(fromDate, toDate, pendingScope) {
   return {
     fromStr: fmtDate(fromDate), toStr: fmtDate(toDate),
     totalCount: targetSchedules.length,
-    personRows, destRows, repeatVisits, byDow, DOW, pendingRequests,
+    personRows, destRows, personDestRows, repeatVisits, byDow, DOW, pendingRequests,
     clientRows, reqStaffRows, requestTotalCount: targetRequests.length,
   };
 }
@@ -552,8 +566,13 @@ function buildReportHtml(data, title, pendingSectionLabel, charts, description) 
     <tr>
       <td ${td}>${esc(p.name)}</td>
       <td ${tdR}>${p.count}件</td>
-      <td ${tdR}>${p.visits}件</td>
       <td ${tdR}>${p.avgMin != null ? p.avgMin + '分' : '－'}</td>
+    </tr>`).join('');
+
+  const personDestTable = (data.personDestRows || []).map(p => `
+    <tr>
+      <td ${td} style="white-space:nowrap;vertical-align:top;padding:6px 10px;border-bottom:1px solid #eee;font-size:14px;">${esc(p.name)}</td>
+      <td ${td}>${p.items.slice(0, 10).map(it => `${esc(it.dest)} <b>${it.count}回</b>`).join('　／　')}</td>
     </tr>`).join('');
 
   const destTable = data.destRows.map(d => `
@@ -613,12 +632,17 @@ function buildReportHtml(data, title, pendingSectionLabel, charts, description) 
     <h3 style="margin-bottom:6px;margin-top:20px;">${esc(pendingSectionLabel)}</h3>
     ${pendingTable}
 
-    <h3 style="margin-bottom:6px;margin-top:20px;">■ 人別 外出件数・訪問先件数・平均外出時間</h3>
+    <h3 style="margin-bottom:6px;margin-top:20px;">■ 人別 外出件数・平均外出時間</h3>
     <table style="border-collapse:collapse;width:100%;margin-bottom:8px;">
-      <tr><th ${th}>氏名</th><th ${th} style="text-align:right;">外出件数</th><th ${th} style="text-align:right;">訪問先件数</th><th ${th} style="text-align:right;">平均外出時間</th></tr>
+      <tr><th ${th}>氏名</th><th ${th} style="text-align:right;">外出件数</th><th ${th} style="text-align:right;">平均外出時間</th></tr>
       ${personTable}
     </table>
-    <p style="color:#999;font-size:12px;margin-top:0;">訪問先件数：1回の外出で複数の訪問先を回った場合は、それぞれを1件として数えています。</p>
+
+    <h3 style="margin-bottom:6px;margin-top:20px;">■ 個人別 訪問先と訪問回数（回数の多い順・各人上位10か所）</h3>
+    <table style="border-collapse:collapse;width:100%;margin-bottom:8px;">
+      <tr><th ${th}>氏名</th><th ${th}>訪問先（期間中の訪問回数）</th></tr>
+      ${personDestTable}
+    </table>
 
     <h3 style="margin-bottom:6px;margin-top:20px;">■ 行先別 頻度（上位15件・複数訪問先は分割集計）</h3>
     <table style="border-collapse:collapse;width:100%;margin-bottom:8px;">
