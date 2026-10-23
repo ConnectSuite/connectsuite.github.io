@@ -22,9 +22,15 @@ function doGet(e) {
     if (e.parameter.action === 'get') return jsonResponse(getAllData());
     // ダッシュボードの「今すぐ送信」リンクから開けるよう、GET経由でも呼べるようにしておく
     // （リンクを新しいタブで開くだけなので、fetch()のCORS制約を気にしなくて済む）
-    if (e.parameter.action === 'sendMonthlyReportsNow') return jsonResponse(sendMonthlyReports());
-    if (e.parameter.action === 'sendMonthlyReportsTestToOwner') return jsonResponse(sendMonthlyReportsTestToOwner());
-    if (e.parameter.action === 'sendMonthlyReportsAliasTestToOwner') return jsonResponse(sendMonthlyReportsAliasTestToOwner());
+    // メールを送る操作は、公開ページに載っている共有トークンだけでは呼べないようにする（2026-10-23）。
+    // 別管理の管理キー（Script PropertiesのADMIN_KEY。リポジトリには置かない）が必要。
+    const act = e.parameter.action;
+    if (act === 'sendMonthlyReportsNow' || act === 'sendMonthlyReportsTestToOwner' || act === 'sendMonthlyReportsAliasTestToOwner') {
+      if (!checkAdminKey_(e.parameter.adminKey)) return jsonResponse({ error: 'admin key required' });
+      if (act === 'sendMonthlyReportsNow') return jsonResponse(sendMonthlyReports());
+      if (act === 'sendMonthlyReportsTestToOwner') return jsonResponse(sendMonthlyReportsTestToOwner());
+      return jsonResponse(sendMonthlyReportsAliasTestToOwner());
+    }
   } catch(err) {
     return jsonResponse({ error: err.message });
   }
@@ -54,21 +60,27 @@ function doPost(e) {
     if (action === 'deleteStaff')    return jsonResponse(deleteRow(SHEET_STAFF, body.id));
     if (action === 'bulkUpdateStaffOrder') return jsonResponse(bulkUpdateStaffOrder(body.updates));
 
-    if (action === 'migrateAddVersionColumn') return jsonResponse(migrateAddVersionColumn());
-    // triviaシートへの初期データ投入（一回限り。既にデータがあれば安全にスキップされる）
-    if (action === 'seedTriviaSheet') return jsonResponse(seedTriviaSheet());
+    // 保守用の一回限りの操作は管理キー必須
+    if (action === 'migrateAddVersionColumn' || action === 'seedTriviaSheet') {
+      if (!checkAdminKey_(body.adminKey)) return jsonResponse({ error: 'admin key required' });
+      return jsonResponse(action === 'seedTriviaSheet' ? seedTriviaSheet() : migrateAddVersionColumn());
+    }
 
     // 「本日の状況」画面のトリビア：表示したことを記録（約1ヶ月は同じネタを出さないための履歴）
     if (action === 'markTriviaShown') return jsonResponse(editRow(SHEET_TRIVIA, body.id, { lastShownAt: body.lastShownAt }));
     // トリビアのまとめ追加（週次のネタ追加運用で使用。1回の呼び出しで複数件まとめて追加できる）
     if (action === 'addTriviaBatch') return jsonResponse(addTriviaBatch(body.items));
 
-    // 分析レポートのテスト送信用（本運用の週次/月次自動送信は別途トリガー設定）
-    if (action === 'sendTestReport') return jsonResponse(sendReportEmail(body.to, body.days || 7));
-    // 月次レポート（月間＋通算の2通）を今すぐ手動で送る（動作確認用。本番は毎月1日にトリガーで自動実行）
-    if (action === 'sendMonthlyReportsNow') return jsonResponse(sendMonthlyReports());
-    // setupMonthlyTriggerで登録したトリガーが実在するか確認する（読み取り専用）
-    if (action === 'listTriggers') return jsonResponse(listReportTriggers());
+    // 月次レポート（月間＋通算の2通）を今すぐ手動で送る（本番は毎月1日にトリガーで自動実行）。管理キー必須
+    if (action === 'sendMonthlyReportsNow') {
+      if (!checkAdminKey_(body.adminKey)) return jsonResponse({ error: 'admin key required' });
+      return jsonResponse(sendMonthlyReports());
+    }
+    // setupMonthlyTriggerで登録したトリガーが実在するか確認する（読み取り専用）。管理キー必須
+    if (action === 'listTriggers') {
+      if (!checkAdminKey_(body.adminKey)) return jsonResponse({ error: 'admin key required' });
+      return jsonResponse(listReportTriggers());
+    }
 
     return jsonResponse({ error: 'unknown action' });
   } catch(err) {
@@ -683,19 +695,6 @@ function authorizeMailPermission() {
   MailApp.sendEmail(me, '【権限確認】行動予定表レポート機能', 'このメールが届いていれば、メール送信の権限承認は完了です。');
 }
 
-function sendReportEmail(toAddress, days) {
-  const data = buildReportData(days || 7);
-  const charts = buildReportCharts(data);
-  const html = buildReportHtml(data, null, null, charts);
-  MailApp.sendEmail({
-    to: toAddress,
-    subject: `【テスト】行動予定表 活動レポート（直近${days || 7}日）`,
-    htmlBody: html,
-    inlineImages: charts.inlineImages,
-  });
-  return { ok: true, totalCount: data.totalCount };
-}
-
 // 月次レポートの送付先。2026-11-1配信分から、お客様（アーチ・イメージング 浜田社長）にも送る
 const REPORT_RECIPIENTS = ['makoto@aoki-prt.co.jp', 'hama@arch-img.co.jp'];
 
@@ -802,6 +801,17 @@ function setupMonthlyTrigger() {
 // ============================================================
 function checkToken(token) {
   return token === ACCESS_TOKEN;
+}
+
+// 管理キー（Script PropertiesのADMIN_KEY）。未設定の間は常に拒否する（設定漏れでも開いた状態にならない）
+function checkAdminKey_(key) {
+  const expected = PropertiesService.getScriptProperties().getProperty('ADMIN_KEY');
+  if (!expected || !key) return false;
+  const a = String(key), b = String(expected);
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
 function jsonResponse(data) {
