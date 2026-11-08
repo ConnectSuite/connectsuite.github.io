@@ -506,6 +506,29 @@
   .profile-header { margin-bottom: 28px; }
   .profile-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
   .profile-sub { font-size: 0.78rem; color: var(--text-dim); }
+
+  /* ===== 共通キー画面 / お知らせ帯 ===== */
+  #key-gate[hidden], #key-banner[hidden], #key-gate-err[hidden] { display: none !important; }
+  #key-gate { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 24px; overflow-y: auto;
+    background: radial-gradient(60vmax 60vmax at 15% 10%, rgba(255,123,26,.14), transparent 60%), radial-gradient(50vmax 50vmax at 90% 95%, rgba(47,111,237,.16), transparent 60%), #0a0e17; color: #e8eef8; }
+  .kg-card { width: 100%; max-width: 520px; background: linear-gradient(160deg,#1a2235,#111827); border: 1px solid #1e2d45; border-radius: 20px; padding: 36px 32px; text-align: center; box-shadow: 0 18px 50px rgba(0,0,0,.45); }
+  .kg-lock { width: 64px; height: 64px; margin: 0 auto 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(255,123,26,.12); border: 1px solid rgba(255,123,26,.45); }
+  .kg-card h1 { font-size: 1.5rem; margin: 0 0 6px; }
+  .kg-sub { color: #6b7a99; font-size: .9rem; margin: 0 0 22px; }
+  .kg-steps { text-align: left; background: rgba(255,255,255,.03); border: 1px solid #1e2d45; border-radius: 14px; padding: 16px 18px; margin-bottom: 18px; }
+  .kg-steps p { margin: 0 0 10px; font-size: .95rem; line-height: 1.6; display: flex; gap: 10px; }
+  .kg-steps p:last-child { margin: 0; }
+  .kg-num { flex: 0 0 24px; height: 24px; border-radius: 50%; background: #ff7b1a; color: #fff; font-weight: 700; font-size: .8rem; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+  #key-gate details { text-align: left; }
+  #key-gate summary { cursor: pointer; color: #6b7a99; font-size: .85rem; text-align: center; list-style: none; }
+  #key-gate summary::-webkit-details-marker { display: none; }
+  .kg-entry { display: flex; gap: 8px; margin-top: 12px; }
+  .kg-entry input { flex: 1; min-width: 0; background: #0a0e17; border: 1px solid #1e2d45; color: #e8eef8; border-radius: 10px; padding: 12px; font-size: 1rem; }
+  .kg-entry button { background: #ff7b1a; color: #fff; border: 0; border-radius: 10px; padding: 0 18px; font-weight: 700; font-size: .95rem; cursor: pointer; }
+  #key-gate-err { color: #ff8a8a; font-size: .8rem; margin: 8px 0 0; }
+  #key-banner { position: fixed; left: 0; right: 0; bottom: 0; z-index: 9000; background: rgba(40,32,10,.92); border-top: 1px solid #ffd166; color: #ffd166; padding: 10px 16px; font-size: .9rem; text-align: center; }
+  #key-banner small { color: #e8eef8; opacity: .85; margin-left: 8px; }
+  @media (max-width: 600px) { .kg-card { padding: 28px 20px; } .kg-card h1 { font-size: 1.3rem; } #key-banner small { display: block; margin: 2px 0 0; } #key-banner { bottom: 84px; left: 8px; right: 8px; border: 1px solid #ffd166; border-radius: 10px; } }
 </style>
 </head>
 <body>
@@ -781,7 +804,20 @@
 //  設定
 // ============================================================
 const GAS_URL   = 'https://script.google.com/macros/s/AKfycbxgTHRD8AVsHCtH84H1_wzjbJ2gVhgviQpaYxQpmSqmSe4LSMEvfN3rAIb3CrhOi6V_/exec';
-const GAS_TOKEN = 'arch-2026-x7kP9mQ2vL';
+// 会社共通キー：端末ごとに localStorage に保存（登録用QRコード/URLの「#key=…」から自動登録）。
+// 登録前の端末は、移行期間中だけ旧方式（LEGACY_TOKEN）で動かす。全端末の登録後に LEGACY_TOKEN を削除する。
+const KEY_STORE    = 'arch_company_key';
+const LEGACY_TOKEN = 'arch-2026-x7kP9mQ2vL';
+(function absorbKeyFromUrl() {
+  try {
+    const m = /(?:^#|&)key=([A-Za-z0-9_-]{16,128})/.exec(location.hash);
+    if (!m) return;
+    localStorage.setItem(KEY_STORE, m[1]);
+    history.replaceState(null, '', location.pathname + location.search); // キーをアドレス欄から消す
+  } catch (e) { /* 保存できない環境では旧方式のまま動く */ }
+})();
+function getCompanyKey() { try { return localStorage.getItem(KEY_STORE) || ''; } catch (e) { return ''; } }
+function getToken()      { return getCompanyKey() || LEGACY_TOKEN; }
 const USE_GAS   = GAS_URL.startsWith('https://');
 
 const STORAGE_SCHEDULE = 'arch_schedule_v1';
@@ -1003,9 +1039,15 @@ function checkDayReset() {
 //  GAS API
 // ============================================================
 async function gasGet() {
-  const res  = await fetch(`${GAS_URL}?action=get&token=${encodeURIComponent(GAS_TOKEN)}`);
+  const res  = await fetch(`${GAS_URL}?action=get&token=${encodeURIComponent(getToken())}`);
   const json = await res.json();
-  if (json.error) { console.warn('GAS error:', json.error); return false; }
+  if (json.error) {
+    console.warn('GAS error:', json.error);
+    if (json.error === 'unauthorized') showKeyGate();
+    return false;
+  }
+  hideKeyGate();
+  updateKeyBanner();
   if (json.schedules) saveSchedule(json.schedules);
   if (json.requests)  saveRequest(json.requests);
   if (json.infos)     saveInfo(json.infos);
@@ -1016,8 +1058,24 @@ async function gasGet() {
 }
 async function gasPost(body) {
   try {
-    await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ ...body, token: GAS_TOKEN }) });
+    await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ ...body, token: getToken() }) });
   } catch (e) { console.warn('GAS post失敗:', e); }
+}
+
+// ============================================================
+//  共通キー：「共通キーが必要です」画面と、移行期間中のお知らせ帯
+// ============================================================
+function showKeyGate() { const g = document.getElementById('key-gate'); if (g) g.hidden = false; }
+function hideKeyGate() { const g = document.getElementById('key-gate'); if (g) g.hidden = true; }
+function updateKeyBanner() {
+  const b = document.getElementById('key-banner');
+  if (b) { b.hidden = !!getCompanyKey(); document.body.style.paddingBottom = b.hidden ? '' : '150px'; } // 登録済みなら消える。帯がボタンに重ならないよう余白を足す
+}
+function submitManualKey() {
+  const v = (document.getElementById('key-gate-input').value || '').trim();
+  if (!/^[A-Za-z0-9_-]{16,128}$/.test(v)) { document.getElementById('key-gate-err').hidden = false; return; }
+  try { localStorage.setItem(KEY_STORE, v); } catch (e) {}
+  location.reload();
 }
 
 // ============================================================
@@ -2096,7 +2154,7 @@ async function seedInitialStaffIfEmpty() {
 //  だと10分以内はキャッシュから古い版が返ってきてしまう。クエリ文字列にバージョンを
 //  埋め込んで別URL扱いにすることでキャッシュを迂回し、確実に最新版を取得する。
 // ============================================================
-const APP_VERSION = '1.13.14';
+const APP_VERSION = '1.14.0';
 (function showVersionBadge() {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = `Ver.${APP_VERSION}`;
@@ -2151,5 +2209,22 @@ setInterval(checkForUpdate, 60000);
   setInterval(refreshSignage, 30000);
 })();
 </script>
+<div id="key-gate" hidden>
+  <div class="kg-card">
+    <div class="kg-lock"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#ff7b1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+    <h1>共通キーが必要です</h1>
+    <p class="kg-sub">行動予定表は、社内の方だけが使える画面です</p>
+    <div class="kg-steps">
+      <p><span class="kg-num">1</span><span>配布された<b>「登録用のQRコード」</b>を、スマホのカメラで読み取ってください。</span></p>
+      <p><span class="kg-num">2</span><span>読み取ると、自動で登録されて、いつもの画面が開きます。</span></p>
+    </div>
+    <details>
+      <summary>QRコードが読み取れないとき（キーを直接入力する）</summary>
+      <div class="kg-entry"><input id="key-gate-input" placeholder="共通キーを貼り付け" aria-label="共通キー" autocomplete="off"><button type="button" onclick="submitManualKey()">登録</button></div>
+      <p id="key-gate-err" hidden>キーの形式が正しくありません。もう一度確認してください。</p>
+    </details>
+  </div>
+</div>
+<div id="key-banner" hidden>⚠ 共通キー未登録（旧方式で動作中）<small>登録用のQRコードを読み取ってください</small></div>
 </body>
 </html>
